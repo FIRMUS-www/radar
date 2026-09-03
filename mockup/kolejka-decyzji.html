@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Content Radar — makieta kolejki decyzji</title>
+<style>
+  :root{
+    --bg:#0b0f14; --panel:#121820; --panel2:#0f141b; --line:#1e2836; --line2:#273449;
+    --text:#e5ecf5; --muted:#8b9bb0; --dim:#5d6f85;
+    --amber:#f5a623; --green:#22c07a; --red:#ef5350; --blue:#4d9fff; --purple:#a78bfa; --cyan:#38c8d8;
+    --radius:12px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    font-size:15px; line-height:1.55;
+  }
+  .wrap{max-width:1180px;margin:0 auto;padding:0 20px 80px}
+
+  /* ── header ── */
+  header{display:flex;align-items:center;gap:14px;padding:22px 0 14px;border-bottom:1px solid var(--line)}
+  .logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:19px;letter-spacing:.3px}
+  .logo .dot{width:13px;height:13px;border-radius:50%;background:var(--amber);box-shadow:0 0 14px var(--amber);animation:pulse 2.4s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
+  .live{font-size:11.5px;color:var(--green);border:1px solid #1d4734;background:#0e1f17;padding:2px 9px;border-radius:99px;font-weight:600}
+  .hdr-right{margin-left:auto;color:var(--dim);font-size:12.5px;text-align:right}
+  .kpis{display:flex;gap:8px;flex-wrap:wrap;padding:14px 0}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:7px 12px;font-size:12.5px;color:var(--muted)}
+  .kpi b{color:var(--text);font-weight:700}
+
+  /* ── layout ── */
+  .cols{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:22px;align-items:start}
+  @media(max-width:920px){.cols{grid-template-columns:1fr}}
+
+  /* ── filters ── */
+  .filters{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px;position:sticky;top:0;background:var(--bg);padding:10px 0;z-index:5}
+  .chip{border:1px solid var(--line2);background:var(--panel);color:var(--muted);border-radius:99px;padding:4px 12px;font-size:12.5px;cursor:pointer;user-select:none}
+  .chip:hover{color:var(--text)}
+  .chip.active{background:var(--amber);border-color:var(--amber);color:#141414;font-weight:700}
+
+  /* ── cards ── */
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);margin-bottom:12px;overflow:hidden;transition:opacity .35s, transform .35s}
+  .card.hidden{display:none}
+  .card.gone{opacity:0;transform:translateX(30px)}
+  .card.snoozed{opacity:.5}
+  .card.sel{border-color:#1d4734}
+  .c-head{padding:13px 16px 12px;cursor:pointer}
+  .meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11.5px;color:var(--dim);margin-bottom:7px}
+  .cr{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10.5px;background:#0d1420;border:1px solid var(--line);padding:1px 7px;border-radius:6px;color:var(--dim)}
+  .sig{font-size:10.5px;font-weight:700;padding:1px 8px;border-radius:99px;letter-spacing:.4px}
+  .sig.news{background:#0d1f33;color:var(--blue)} .sig.pain{background:#2b1214;color:var(--red)}
+  .sig.discovery{background:#1d1636;color:var(--purple)} .sig.inspire{background:#0e2318;color:var(--green)}
+  .sig.intent{background:#2a1f0a;color:var(--amber)}
+  .sig.explore{background:#241a2e;color:#d8b4fe;border:1px dashed #6b4f8a}
+  .fact{font-size:10.5px;font-weight:700;padding:1px 8px;border-radius:4px;letter-spacing:.5px}
+  .fact.bill{background:#0d1f33;color:var(--blue)} .fact.data{background:#0b2429;color:var(--cyan)}
+  .fact.fact{background:#0e2318;color:var(--green)}
+  .notif{font-size:10.5px;color:var(--green)}
+  .headline{font-size:16.5px;font-weight:700;line-height:1.35}
+  .score-line{display:flex;align-items:center;gap:8px;margin-top:9px}
+  .bar{width:90px;height:5px;border-radius:3px;background:#1a2331;overflow:hidden}
+  .bar i{display:block;height:100%;background:var(--amber);border-radius:3px}
+  .score-line span{font-size:11.5px;color:var(--dim)}
+  .why{display:none;font-size:11.5px;color:var(--dim);margin-top:8px;border-top:1px dashed var(--line);padding-top:8px}
+  .card.open .why{display:block}
+
+  .c-body{display:none;border-top:1px solid var(--line);padding:14px 16px;background:var(--panel2)}
+  .card.open .c-body{display:block}
+  .sec{margin-bottom:12px}
+  .sec h4{font-size:10.5px;letter-spacing:1.2px;color:var(--dim);font-weight:800;margin-bottom:4px}
+  .sec p{font-size:13.5px;color:#c8d3e0}
+  .angle{display:flex;gap:8px;align-items:flex-start;font-size:13.5px;color:#c8d3e0;margin-bottom:5px}
+  .angle .fmt{flex:none;font-size:10px;font-weight:800;letter-spacing:.6px;padding:2px 7px;border-radius:4px;background:#1a2331;color:var(--muted);margin-top:2px}
+  .src{font-size:12.5px}
+  .src a{color:var(--blue);text-decoration:none}
+  .src .p{color:var(--dim)}
+  .src .prim{color:var(--green);font-weight:700;font-size:10px;letter-spacing:.5px;margin-right:5px}
+
+  .actions{display:flex;gap:8px;margin-top:4px;flex-wrap:wrap}
+  .btn{border:1px solid var(--line2);background:#161f2b;color:var(--text);border-radius:8px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer}
+  .btn:hover{border-color:var(--dim)}
+  .btn.primary{background:var(--amber);color:#141414;border-color:var(--amber)}
+  .btn.primary:hover{background:#ffb737}
+  .btn.ghost{background:transparent}
+  .state-badge{display:none;align-items:center;gap:7px;font-size:12.5px;font-weight:600;padding:6px 0}
+  .card.sel .state-badge.sel,.card.snoozed .state-badge.snooze{display:flex}
+
+  /* ── section titles ── */
+  .sec-title{display:flex;align-items:center;gap:10px;margin:30px 0 14px}
+  .sec-title h2{font-size:15px;letter-spacing:1.5px;font-weight:800;color:var(--muted)}
+  .sec-title .cnt{font-size:11px;background:#1a2331;color:var(--amber);border-radius:99px;padding:2px 9px;font-weight:700}
+  .sec-title .hint{font-size:11.5px;color:var(--dim);margin-left:auto}
+
+  /* ── workshop ── */
+  .draft{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+  .d-head{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .d-head .t{font-weight:700;font-size:14.5px}
+  .ver{font-size:11px;color:var(--amber);border:1px solid #4a3410;border-radius:6px;padding:1px 8px;font-weight:700}
+  .brief-ok{font-size:11.5px;color:var(--green)}
+  .tabs{display:flex;gap:6px;margin-left:auto}
+  .tab{border:1px solid var(--line2);background:transparent;color:var(--muted);border-radius:8px;padding:5px 14px;font-size:12.5px;font-weight:700;cursor:pointer}
+  .tab.active{background:var(--amber);color:#141414;border-color:var(--amber)}
+  .d-body{padding:16px 18px}
+  .d-sec{margin-bottom:13px}
+  .d-sec h4{font-size:10.5px;letter-spacing:1.2px;color:var(--amber);font-weight:800;margin-bottom:4px}
+  .d-sec p{font-size:14px;color:#d4dce8}
+  .d-sec p em{color:var(--text);font-style:normal;font-weight:700}
+  .quote{border-left:3px solid var(--amber);padding:6px 12px;background:#0e141c;border-radius:0 8px 8px 0;font-size:14px}
+  .d-foot{display:flex;gap:8px;padding:0 18px 16px;flex-wrap:wrap;align-items:center}
+  .note-input{flex:1;min-width:180px;background:#0d1420;border:1px solid var(--line2);border-radius:8px;color:var(--text);padding:7px 12px;font-size:13px}
+  .note-input::placeholder{color:var(--dim)}
+
+  /* ── sidebar ── */
+  .side .w{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;margin-bottom:14px}
+  .side h3{font-size:11px;letter-spacing:1.4px;color:var(--dim);font-weight:800;margin-bottom:10px}
+  .seed{display:flex;gap:7px}
+  .seed input{flex:1;background:#0d1420;border:1px solid var(--line2);border-radius:8px;color:var(--text);padding:7px 11px;font-size:12.5px}
+  .seed input::placeholder{color:var(--dim)}
+  .seed .btn{padding:7px 12px;font-size:12.5px}
+  .seed-hint{font-size:11px;color:var(--dim);margin-top:7px}
+  .gauge{height:7px;background:#1a2331;border-radius:4px;overflow:hidden;margin:7px 0 5px}
+  .gauge i{display:block;height:100%;background:var(--purple);border-radius:4px}
+  .gauge-row{display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted)}
+  .srcrow{display:flex;align-items:center;gap:8px;font-size:12.5px;padding:5px 0;border-bottom:1px dashed #17202c}
+  .srcrow:last-child{border-bottom:none}
+  .tier{flex:none;font-size:9.5px;font-weight:800;letter-spacing:.5px;border-radius:4px;padding:1.5px 6px}
+  .tier.hot{background:#2b1214;color:var(--red)} .tier.warm{background:#2a1f0a;color:var(--amber)} .tier.cold{background:#0d1f33;color:var(--blue)}
+  .srcrow .nm{flex:1;color:#c8d3e0}
+  .srcrow .y{font-size:11px;color:var(--dim)}
+  .up{color:var(--green)} .down{color:var(--red)}
+  .prop{margin-top:9px;border:1px dashed #6b4f8a;background:#150f1d;border-radius:8px;padding:9px 11px}
+  .prop .p-t{font-size:12px;color:#d8b4fe;font-weight:700}
+  .prop p{font-size:11.5px;color:var(--muted);margin:3px 0 7px}
+  .prop .btn{font-size:11.5px;padding:4px 10px}
+  .lesson{display:flex;gap:8px;font-size:12px;color:#c8d3e0;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:7px 10px;margin-bottom:6px}
+  .lesson .l-ico{color:var(--amber)}
+  .lesson.new{border-color:#4a3410;animation:fadein .6s}
+  @keyframes fadein{from{opacity:0;transform:translateY(-4px)}to{opacity:1}}
+  .style-stat{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);padding-top:8px;border-top:1px dashed #17202c;margin-top:4px}
+  .style-stat b{color:var(--green)}
+
+  /* ── toast ── */
+  #toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(20px);background:#1a2331;border:1px solid var(--line2);color:var(--text);border-radius:10px;padding:11px 20px;font-size:13.5px;opacity:0;pointer-events:none;transition:.3s;z-index:99;box-shadow:0 8px 30px rgba(0,0,0,.5);max-width:90vw}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  footer{margin-top:44px;color:var(--dim);font-size:12px;border-top:1px solid var(--line);padding-top:16px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="logo"><span class="dot"></span>Content Radar</div>
+    <span class="live">● LIVE</span>
+    <div class="hdr-right">środa, 3 września 2026 · 09:41<br>następny przebieg: 10:00</div>
+  </header>
+
+  <div class="kpis">
+    <div class="kpi">dziś: <b>14 nowych</b> kandydatów</div>
+    <div class="kpi">kolejka główna: <b>15</b> / 20</div>
+    <div class="kpi">wybrane dziś: <b>3</b></div>
+    <div class="kpi">w warsztacie: <b>2</b></div>
+    <div class="kpi">scoopy dziś: <b>2</b> <span style="color:var(--dim)">(znalazł przede mną)</span></div>
+    <div class="kpi">wczoraj: <b>18 pokazanych · 4 wybrane</b> (22%)</div>
+  </div>
+
+  <div class="cols">
+    <main>
+
+      <!-- ════════ ETAP 1: KOLEJKA DECYZJI ════════ -->
+      <div class="sec-title" style="margin-top:6px">
+        <h2>ETAP 1 — KOLEJKA DECYZJI</h2>
+        <span class="cnt">7</span>
+        <span class="hint">przejrzyj jak redaktor prowadzący: biorę · później · odpada</span>
+      </div>
+
+      <div class="filters" id="filters">
+        <span class="chip active" data-f="all">Wszystkie 7</span>
+        <span class="chip" data-f="news">NEWS 3</span>
+        <span class="chip" data-f="pain">PAIN 3</span>
+        <span class="chip" data-f="discovery">DISCOVERY 2</span>
+        <span class="chip" data-f="inspire">INSPIRE 2</span>
+        <span class="chip" data-f="intent">INTENT 1</span>
+        <span class="chip" data-f="explore">◇ Eksploracja 1</span>
+      </div>
+
+      <!-- ── karta 1 ── -->
+      <div class="card" data-sig="news pain">
+        <div class="c-head">
+          <div class="meta">
+            <span>08:09</span><span class="cr">CR-260903-02</span>
+            <span class="sig news">NEWS</span><span class="sig pain">PAIN</span>
+            <span class="fact bill">PROJEKT</span>
+            <span class="state-badge sel">✓ w warsztacie — draft w przygotowaniu</span>
+            <span class="state-badge snooze">⏱ wróci o 22:00</span>
+          </div>
+          <div class="headline">Rząd przyjął projekt: OSS ma ograniczyć rejestracje VAT przy sprzedaży online w UE</div>
+          <div class="score-line"><div class="bar"><i style="width:72%"></i></div><span>score 13/16 · boost zmiany 22:10</span></div>
+          <div class="why">Dlaczego to widzisz: wysoki score „konkret" (próg 10 tys. €, likwidacja obowiązku adresów www) + sygnał NEWS z gov.pl (HOT)</div>
+        </div>
+        <div class="c-body">
+          <div class="sec"><h4>CO SIĘ STAŁO</h4>
+            <p>Projekt UC147 ma doprecyzować i rozszerzyć zasady VAT e-commerce w ramach wdrażania ViDA. Przewiduje m.in. szersze wykorzystanie OSS, likwidację obowiązku podawania adresów stron www przy części rejestracji oraz doprecyzowanie progu 10 tys. euro.</p></div>
+          <div class="sec"><h4>DLACZEGO WAŻNE</h4>
+            <p>Dla małego e-commerce sprzedającego konsumentom w kilku krajach UE mniej lokalnych rejestracji VAT oznacza mniej administracji i mniej miejsc, w których łatwo popełnić błąd.</p></div>
+          <div class="sec"><h4>POTENCJAŁ / KĄT</h4>
+            <div class="angle"><span class="fmt">POST</span><span>„Sprzedajesz do kilku państw UE? Rząd chce jedno okienko zamiast mnożenia rejestracji" — praktyczny materiał dla sklepów.</span></div>
+            <div class="angle"><span class="fmt">ROLKA</span><span>Kontrast: 1 rejestracja vs 5 — na ekranie same symbole krajów, na końcu pytanie do e-commerce.</span></div></div>
+          <div class="sec"><h4>ŹRÓDŁO</h4>
+            <p class="src"><span class="prim">PIERWOTNE</span><a href="#">gov.pl — projekt ustawy UC147</a> <span class="p">· potwierdzenie: podatki.biz</span></p></div>
+          <div class="actions">
+            <button class="btn primary" onclick="selectCard(this)">⚡ Rozwiń ten temat</button>
+            <button class="btn" onclick="laterCard(this)">⏱ Może później</button>
+            <button class="btn ghost" onclick="rejectCard(this)">✕ Odrzuć</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── karta 2 ── -->
+      <div class="card" data-sig="news inspire">
+        <div class="c-head">
+          <div class="meta">
+            <span>08:08</span><span class="cr">CR-260903-01</span>
+            <span class="sig news">NEWS</span><span class="sig inspire">INSPIRE</span>
+            <span class="fact bill">PROJEKT</span>
+            <span class="state-badge sel">✓ w warsztacie — draft w przygotowaniu</span>
+            <span class="state-badge snooze">⏱ wróci o 22:00</span>
+          </div>
+          <div class="headline">Po planie spłaty długi mają umarzać się z mocy prawa. Rząd przyjął projekt</div>
+          <div class="score-line"><div class="bar"><i style="width:68%"></i></div><span>score 12/16</span></div>
+          <div class="why">Dlaczego to widzisz: mocny sygnał INSPIRE (druga szansa, odbudowa po porażce) + NEWS z gov.pl (HOT)</div>
+        </div>
+        <div class="c-body">
+          <div class="sec"><h4>CO SIĘ STAŁO</h4>
+            <p>Rada Ministrów przyjęła projekt UD260 zmieniający Prawo upadłościowe. Zakłada m.in. umorzenie pozostałych zobowiązań z mocy prawa po 3 miesiącach od końca planu spłaty oraz odejście od stałego nadzoru sądu z urzędu.</p></div>
+          <div class="sec"><h4>DLACZEGO WAŻNE</h4>
+            <p>Rzadka dobra wiadomość z obszaru niewypłacalności: końcowy etap oddłużenia ma być bardziej automatyczny i mniej obciążający sądy oraz dłużnika.</p></div>
+          <div class="sec"><h4>POTENCJAŁ / KĄT</h4>
+            <div class="angle"><span class="fmt">ROLKA</span><span>„Upadłość nie musi oznaczać 5 lat czekania na ostatnie postanowienie sądu" — temat o drugiej szansie.</span></div></div>
+          <div class="sec"><h4>ŹRÓDŁO</h4>
+            <p class="src"><span class="prim">PIERWOTNE</span><a href="#">gov.pl — projekt UD260</a> <span class="p">· isbiznes.pl</span></p></div>
+          <div class="actions">
+            <button class="btn primary" onclick="selectCard(this)">⚡ Rozwiń ten temat</button>
+            <button class="btn" onclick="laterCard(this)">⏱ Może później</button>
+            <button class="btn ghost" onclick="rejectCard(this)">✕ Odrzuć</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── karta 3 (rozwinięta domyślnie) ── -->
+      <div class="card open" data-sig="discovery pain">
+        <div class="c-head">
+          <div class="meta">
+            <span>wczoraj 21:07</span><span class="cr">CR-260902-09</span>
+            <span class="sig discovery">DISCOVERY</span><span class="sig pain">PAIN</span>
+            <span class="fact data">DANE</span>
+            <span class="state-badge sel">✓ w warsztacie — draft w przygotowaniu</span>
+            <span class="state-badge snooze">⏱ wróci o 22:00</span>
+          </div>
+          <div class="headline">74% badanych MŚP wraca do klientów, którzy zapłacili dużo po terminie. U 85% problem wraca</div>
+          <div class="score-line"><div class="bar"><i style="width:94%"></i></div><span>score 15/16 · najwyższy dziś</span></div>
+          <div class="why">Dlaczego to widzisz: trzy mocne liczby + napięcie „sprzedaż vs płynność" + sygnał DISCOVERY z raportu IMAS (źródło pierwotne dobrane z opisu wtórnego)</div>
+        </div>
+        <div class="c-body">
+          <div class="sec"><h4>CO SIĘ STAŁO</h4>
+            <p>Badanie IMAS International (sierpień 2026, próba 506 MŚP wystawiających faktury z odroczonym terminem): 83% zetknęło się z opóźnionymi płatnościami w ostatnich 18 miesiącach, 74% nadal robiło interesy przynajmniej z częścią dłużników, a u 85% z tej grupy problem się powtórzył.</p></div>
+          <div class="sec"><h4>DLACZEGO WAŻNE</h4>
+            <p>Konflikt znany małej firmie: odciąć klienta, który nie płaci, czy ryzykować, bo nadal przynosi zamówienia. Dane pokazują, jak często przedsiębiorcy wybierają drugą szansę — kosztem własnej płynności.</p></div>
+          <div class="sec"><h4>POTENCJAŁ / KĄT</h4>
+            <div class="angle"><span class="fmt">ROLKA</span><span>„Najdroższy klient to ten, którego boisz się stracić" — koszt psychiczny i finansowy kredytowania kontrahenta.</span></div>
+            <div class="angle"><span class="fmt">POST</span><span>Liczba + pytanie do przedsiębiorców: „Wróciliście do dłużnika? Ile was to kosztowało?"</span></div></div>
+          <div class="sec"><h4>ŹRÓDŁO</h4>
+            <p class="src"><span class="prim">PIERWOTNE</span><a href="#">IMAS International — badanie (PDF)</a> <span class="p">· kaczmarski.pl · forsal.pl · isbiznes.pl</span></p></div>
+          <div class="actions">
+            <button class="btn primary" onclick="selectCard(this)">⚡ Rozwiń ten temat</button>
+            <button class="btn" onclick="laterCard(this)">⏱ Może później</button>
+            <button class="btn ghost" onclick="rejectCard(this)">✕ Odrzuć</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── karta 4 ── -->
+      <div class="card" data-sig="news pain">
+        <div class="c-head">
+          <div class="meta">
+            <span>wczoraj 11:48</span><span class="cr">CR-260902-05</span>
+            <span class="sig news">NEWS</span><span class="sig pain">PAIN</span>
+            <span class="fact fact">FAKT</span>
+            <span class="notif">↗ powiadomienie wysłane 11:52</span>
+            <span class="state-badge sel">✓ w warsztacie — draft w przygotowaniu</span>
+            <span class="state-badge snooze">⏱ wróci o 22:00</span>
+          </div>
+          <div class="headline">KAS: 110 decyzji i ponad 55,6 mln zł kar za naruszenia sankcji w 7 miesięcy</div>
+          <div class="score-line"><div class="bar"><i style="width:88%"></i></div><span>score 14/16</span></div>
+          <div class="why">Dlaczego to widzisz: mocna liczba (55,6 mln zł, wzrost z 8 mln rok do roku) + ryzyko realne dla firm handlujących międzynarodowo</div>
+        </div>
+        <div class="c-body">
+          <div class="sec"><h4>CO SIĘ STAŁO</h4>
+            <p>W pierwszych 7 miesiącach 2026 r. KAS wydała 110 decyzji o karach za naruszenia sankcji na ponad 55,6 mln zł (w całym 2025: 33 decyzje, &gt;8 mln zł). Rekordzista: 20 mln zł.</p></div>
+          <div class="sec"><h4>DLACZEGO WAŻNE</h4>
+            <p>Dla firm handlujących międzynarodowo ryzyko sankcyjne to już nie teoria — realne kary wymagają kontroli łańcucha dostaw i odbiorcy.</p></div>
+          <div class="sec"><h4>POTENCJAŁ / KĄT</h4>
+            <div class="angle"><span class="fmt">ROLKA</span><span>„Kontrahent za granicą? Czasem trzeba wiedzieć, gdzie naprawdę pojedzie towar."</span></div></div>
+          <div class="sec"><h4>ŹRÓDŁO</h4>
+            <p class="src"><span class="prim">PIERWOTNE</span><a href="#">gov.pl/kas — komunikaty</a> <span class="p">· rp.pl</span></p></div>
+          <div class="actions">
+            <button class="btn primary" onclick="selectCard(this)">⚡ Rozwiń ten temat</button>
+            <button class="btn" onclick="laterCard(this)">⏱ Może później</button>
+            <button class="btn ghost" onclick="rejectCard(this)">✕ Odrzuć</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── karta 5 ── -->
+      <div class="card" data-sig="discovery">
+        <div class="c-head">
+          <div class="meta">
+            <span>wczoraj 11:52</span><span class="cr">CR-260902-08</span>
+            <span class="sig discovery">DISCOVERY</span>
+            <span class="fact data">DANE</span>
+            <span class="state-badge sel">✓ w warsztacie — draft w przygotowaniu</span>
+            <span class="state-badge snooze">⏱ wróci o 22:00</span>
+          </div>
+          <div class="headline">Bank Światowy: AI może podnieść PKB Polski o 12,1%, ale zmieni też strukturę wpływów podatkowych</div>
+          <div class="score-line"><div class="bar"><i style="width:75%"></i></div><span>score 12/16</span></div>
+          <div class="why">Dlaczego to widzisz: DISCOVERY z raportu pierwotnego + kąt systemowy (podatki od pracy vs kapitał) — przestrzeń na własny komentarz</div>
+        </div>
+        <div class="c-body">
+          <div class="sec"><h4>CO SIĘ STAŁO</h4>
+            <p>Według raportu Banku Światowego AI może do 2035 r. zwiększyć realny PKB Polski o 12,1%, przesuwając bazę podatkową: składki −0,6% PKB, PIT −0,2%, CIT +0,1%, VAT +0,3%.</p></div>
+          <div class="sec"><h4>DLACZEGO WAŻNE</h4>
+            <p>Jeśli praca przestaje być głównym źródłem wartości, co dalej z systemem opartym na podatkach i składkach od pracy? To pytanko o przyszłość JDG.</p></div>
+          <div class="sec"><h4>POTENCJAŁ / KĄT</h4>
+            <div class="angle"><span class="fmt">POST</span><span>Kontrast: „PKB +12%. Składki −0,6% PKB. Kto to zbalansuje?"</span></div></div>
+          <div class="sec"><h4>ŹRÓDŁO</h4>
+            <p class="src"><span class="prim">PIERWOTNE</span><a href="#">worldbank.org — raport</a> <span class="p">· businessinsider.com.pl</span></p></div>
+          <div class="actions">
+            <button class="btn primary" onclick="selectCard(this)">⚡ Rozwiń ten temat</button>
+            <button class="btn" onclick="laterCard(this)">⏱ Może później</button>
+            <button class="btn ghost" onclick="rejectCard(this)">✕ Odrzuć</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── karta 6: eksploracja / INSPIRE ── -->
+      <div class="card" data-sig="inspire explore">
+        <div class="c-head">
+          <div class="meta">
+            <span>wczoraj 17:31</span><span class="cr">CR-260902-11</span>
+            <span class="sig inspire">INSPIRE</span><span class="sig explore">◇ E</span>
+            <span class="fact fact">FAKT</span>
+            <span class="state-badge sel">✓ w warsztacie — draft w przygotowaniu</span>
+            <span class="state-badge snooze">⏱ wróci o 22:00</span>
+          </div>
+          <div class="headline">Zamknął warsztat po 19 latach, bo nie znalazł następcy. „Młodzi wolą Ubera od tokarki"</div>
+          <div class="score-line"><div class="bar"><i style="width:56%"></i></div><span>score 9/16 · slot eksploracyjny</span></div>
+          <div class="why">Dlaczego to widzisz: kandydat z kwoty eksploracji (źródło COLD — izba rzemieślnicza). Bohater, decyzja, konsekwencja — poza utartym schematem podatkowym.</div>
+        </div>
+        <div class="c-body">
+          <div class="sec"><h4>CO SIĘ STAŁO</h4>
+            <p>Rzemieślnik z Podkarpacia zamknął zakład po 19 latach. Przychody rosły, ale w wieku 58 lat nie znalazł nikogo, kto chciałby przejąć warsztat — z trzech uczniów żaden nie został.</p></div>
+          <div class="sec"><h4>DLACZEGO WAŻNE</h4>
+            <p>Pytanie o suksesję mikrofirm: w Polsce setki tysięcy firm znikną razem z założycielami. To historia z bohaterem, decyzją i ceną.</p></div>
+          <div class="sec"><h4>POTENCJAŁ / KĄT</h4>
+            <div class="angle"><span class="fmt">ROLKA</span><span>Storytelling: „Ostatni dzień warsztatu" — sukces, którego nie komu przekazać.</span></div></div>
+          <div class="sec"><h4>ŹRÓDŁO</h4>
+            <p class="src"><span class="prim">PIERWOTNE</span><a href="#">lokalne medium</a> <span class="p">· znaleziono przez: izba rzemieślnicza (COLD)</span></p></div>
+          <div class="actions">
+            <button class="btn primary" onclick="selectCard(this)">⚡ Rozwiń ten temat</button>
+            <button class="btn" onclick="laterCard(this)">⏱ Może później</button>
+            <button class="btn ghost" onclick="rejectCard(this)">✕ Odrzuć</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── karta 7: INTENT ── -->
+      <div class="card" data-sig="intent pain">
+        <div class="c-head">
+          <div class="meta">
+            <span>07:56</span><span class="cr">CR-260903-03</span>
+            <span class="sig intent">INTENT</span><span class="sig pain">PAIN</span>
+            <span class="fact data">SYGNAŁ SPOŁ.</span>
+            <span class="state-badge sel">✓ w warsztacie — draft w przygotowaniu</span>
+            <span class="state-badge snooze">⏱ wróci o 22:00</span>
+          </div>
+          <div class="headline">Na Wykopie 340 komentarzy pod pytaniem o składkę zdrowotną ryczałtowca: „nikt nie umie tego policzyć"</div>
+          <div class="score-line"><div class="bar"><i style="width:69%"></i></div><span>score 11/16 · gorący wątek (Wykop, +12 pkt/h)</span></div>
+          <div class="why">Dlaczego to widzisz: INTENT — rosnąca dyskusja (340 komentarzy w 6 h) + język przedsiębiorców wprost z wątku; nie jest newsem, ale realnie boli</div>
+        </div>
+        <div class="c-body">
+          <div class="sec"><h4>CO SIĘ STAŁO</h4>
+            <p>Wątek na Wykopie o składce zdrowotnej przy ryczałcie IT zyskał 340 komentarzy w 6 godzin. Dominują pytania o progi, ulgi i „czy księgowa ma rację" — sporo sprzecznych odpowiedzi.</p></div>
+          <div class="sec"><h4>DLACZEGO WAŻNE</h4>
+            <p>To gotowy materiał INTENT: ludzie aktywnie pytają i nie dostają pewnych odpowiedzi. Język z wątku = język odbiorcy („nikt nie umie tego policzyć").</p></div>
+          <div class="sec"><h4>POTENCJAŁ / KĄT</h4>
+            <div class="angle"><span class="fmt">ROLKA</span><span>„Składka zdrowotna ryczałtowca w 45 sekund — w końcu bez tabelki" (reakcja na wątek).</span></div>
+            <div class="angle"><span class="fmt">POST</span><span>Cytat z wątku + proste rozłożenie na czynniki pierwsze.</span></div></div>
+          <div class="sec"><h4>ŹRÓDŁO</h4>
+            <p class="src"><span class="prim">PIERWOTNE</span><a href="#">wykop.pl — wątek</a> <span class="p">· do weryfikacji: ZUS (kalkulator)</span></p></div>
+          <div class="actions">
+            <button class="btn primary" onclick="selectCard(this)">⚡ Rozwiń ten temat</button>
+            <button class="btn" onclick="laterCard(this)">⏱ Może później</button>
+            <button class="btn ghost" onclick="rejectCard(this)">✕ Odrzuć</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════════ ETAP 2: WARSZTAT ════════ -->
+      <div class="sec-title">
+        <h2>ETAP 2 — WARSZTAT</h2>
+        <span class="cnt" id="ws-cnt">2 tematy</span>
+        <span class="hint">gotowiec ≈ 12 min od kliknięcia „rozwiń" · przyjdzie powiadomienie</span>
+      </div>
+
+      <div class="draft">
+        <div class="d-head">
+          <span class="t">74% MŚP wraca do dłużników · CR-260902-09</span>
+          <span class="ver">v2</span>
+          <span class="brief-ok">✓ brief: 6 źródeł, 9 claims, liczby potwierdzone w raporcie IMAS</span>
+          <div class="tabs">
+            <button class="tab active" onclick="tab(this,'reel')">ROLKA</button>
+            <button class="tab" onclick="tab(this,'post')">POST</button>
+          </div>
+        </div>
+        <div class="d-body" id="tab-reel">
+          <div class="d-sec"><h4>HOOK (0–3 s)</h4>
+            <p class="quote">Twój najlepszy klient może być najdroższy. Ten, który <em>wciąż</em> nie płaci.</p></div>
+          <div class="d-sec"><h4>NARRACJA (≈50 s, mówiona)</h4>
+            <p>Badanie pięciuset małych i średnich firm. 83% z nich w ostatnim roku i pół miało klienta, który zapłacił dużo po terminie. I wiesz co? 74% wróciło do takiego klienta z kolejnym zleceniem. Bo zostawiać pieniądze na stole nie chce nikt.</p>
+            <p style="margin-top:8px">A u 85% z tych, którzy dali drugą szansę, historia się powtórzyła. Czyli: druga szansa to często nie koniec historii, tylko rata pierwszej.</p></div>
+          <div class="d-sec"><h4>KONKRET (na ekranie)</h4>
+            <p><em>83%</em> miało spóźnionego płatnika → <em>74%</em> wróciło do dłużnika → <em>85%</em> pożegnało się z pieniędzmi drugi raz</p></div>
+          <div class="d-sec"><h4>PUENTA</h4>
+            <p>Druga szansa dla klienta to decyzja biznesowa — bywa dobra. Ale zapytaj się raz: kto daje drugą szansę Twojej płynności?</p></div>
+          <div class="d-sec"><h4>WSKAZÓWKA WIZUALNA</h4>
+            <p>Trzy duże liczby pojawiające się po sobie (83 → 74 → 85), na końcu screen tabeli z raportu. Zero efektów.</p></div>
+        </div>
+        <div class="d-body" id="tab-post" style="display:none">
+          <div class="d-sec"><h4>HOOK / PIERWSZE ZDANIE</h4>
+            <p class="quote">74% firm wraca do klienta, który je ograbił. Nie z lojalności — ze strachu.</p></div>
+          <div class="d-sec"><h4>TREŚĆ</h4>
+            <p>IMAS zapytał 506 firm wystawiających faktury z odroczonym terminem. 83% zetknęło się w ostatnich 18 miesiącach z płatnikiem, który zdecydowanie spóźnił się z zapłatą. <em>74% tych firm i tak wróciło po kolejne zlecenie.</em> A u 85% z nich dłużnik znowu zapłacił późno — albo wcale.</p>
+            <p style="margin-top:8px">Ta liczba nie mówi o naiwności. Mówi o pułapce: odbiorca przynosi sprzedaż, a koszt finansowania bierze na siebie Twoja firma. Kredyt kontrahenta, o który nikt Cię nie pytał.</p></div>
+          <div class="d-sec"><h4>PUENTA / PYTANIE</h4>
+            <p>Wróciliście kiedyś do dłużnika? Ile Was to kosztowało — naprawdę, z odsetkami i nerwami?</p></div>
+        </div>
+        <div class="d-foot">
+          <button class="btn primary" onclick="acceptDraft()">✓ Akceptuję</button>
+          <input class="note-input" id="note" placeholder="uwaga do poprawki, np. „za grzeczne, mocniej z puentą"">
+          <button class="btn" onclick="iterateDraft()">✎ Popraw z uwagą → v3</button>
+        </div>
+      </div>
+
+      <footer>
+        Makieta interaktywna (dane przykładowe na bazie realnych kandydatów z 2–3.09.2026 + pozycje demonstracyjne INSPIRE/INTENT).
+        Kliknij nagłówek karty, aby rozwinąć; filtry u góry; przyciski decyzji reagują. Pełna specyfikacja: <b>WIZJA-I-ARCHITEKTURA.md</b>.
+      </footer>
+    </main>
+
+    <!-- ════════ SIDEBAR ════════ -->
+    <aside class="side">
+      <div class="w">
+        <h3>SKRZYNKA ZASIEWÓW</h3>
+        <div class="seed">
+          <input id="seed-url" placeholder="wklej link (X, artykuł, film…)">
+          <button class="btn primary" onclick="addSeed()">Zasiej</button>
+        </div>
+        <div class="seed-hint">Omija prefiltrowkę — trafia do najbliższego przebiegu (≈30 min) z najwyższym priorytetem. Działa też przez bota na Telegramie.</div>
+      </div>
+
+      <div class="w">
+        <h3>ANTY-BAŃKA — KWOTA EKSPLORACJI</h3>
+        <div class="gauge"><i style="width:20%"></i></div>
+        <div class="gauge-row"><span>3/15 miejsc dla kandydatów „◇ E"</span><span>min. 20%</span></div>
+        <div class="gauge-row" style="margin-top:7px;color:var(--dim);font-size:11px">w tym tygodniu wybrane z eksploracji: 2 → wagi korygowane w górę</div>
+      </div>
+
+      <div class="w">
+        <h3>ŹRÓDŁA — RENTOWNOŚĆ</h3>
+        <div class="srcrow"><span class="tier hot">HOT</span><span class="nm">PAP Biznes</span><span class="y up">▲ 6 wyb./tydz.</span></div>
+        <div class="srcrow"><span class="tier hot">HOT</span><span class="nm">RCL / legislacja</span><span class="y up">▲ 4 wyb./tydz.</span></div>
+        <div class="srcrow"><span class="tier warm">WARM</span><span class="nm">UOKiK</span><span class="y down">▼ 0 wyb./21 dni</span></div>
+        <div class="srcrow"><span class="tier cold">COLD</span><span class="nm">Izby rzemieślnicze</span><span class="y">próba: dzień 6/14</span></div>
+        <div class="prop">
+          <div class="p-t">◆ Propozycja modelu: Coface — raporty płatności B2B</div>
+          <p>3 kandydaty DISCOVERY o płynności w 2 tyg. uzasadniają próbę.</p>
+          <button class="btn" onclick="approveSource(this)">Zatwierdź 14-dniową próbę</button>
+        </div>
+      </div>
+
+      <div class="w">
+        <h3>PROFIL STYLU · v14</h3>
+        <div class="lesson"><span class="l-ico">→</span><span>przy danych trendowych wchodzę od najmocniejszej liczby (bez kontekstu)</span></div>
+        <div class="lesson"><span class="l-ico">→</span><span>puenta-pytanie działa lepiej niż puenta-morał</span></div>
+        <div id="lessons"></div>
+        <div class="style-stat"><span>objętość poprawek</span><b>−38% od czerwca</b></div>
+        <div class="style-stat"><span>pary w bibliotece przykładów</span><b>27</b></div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+  // ── filtry ──
+  document.getElementById('filters').addEventListener('click', e => {
+    const c = e.target.closest('.chip'); if (!c) return;
+    document.querySelectorAll('.chip').forEach(x => x.classList.remove('active'));
+    c.classList.add('active');
+    const f = c.dataset.f;
+    document.querySelectorAll('.card').forEach(card => {
+      const show = f === 'all' || (card.dataset.sig || '').split(' ').includes(f);
+      card.classList.toggle('hidden', !show);
+    });
+  });
+
+  // ── rozwijanie karty ──
+  document.querySelectorAll('.c-head').forEach(h =>
+    h.addEventListener('click', () => h.parentElement.classList.toggle('open')));
+
+  // ── decyzje ──
+  let wsCount = 2;
+  function selectCard(btn){
+    const card = btn.closest('.card');
+    card.classList.remove('open'); card.classList.add('sel');
+    card.querySelectorAll('.actions .btn').forEach(b => b.style.display = 'none');
+    wsCount++; document.getElementById('ws-cnt').textContent = wsCount + ' tematy';
+    toast('⚡ Wzięty do opracowania (ETAP 2). Brief + drafty ≈ 12 min — dam znać na Telegramie.');
+  }
+  function laterCard(btn){
+    const card = btn.closest('.card');
+    card.classList.remove('open'); card.classList.add('snoozed');
+    card.querySelectorAll('.actions .btn').forEach(b => b.style.display = 'none');
+    toast('⏱ Odłożone. Wróci o 22:00 ze score −20%.');
+  }
+  function rejectCard(btn){
+    const card = btn.closest('.card');
+    card.classList.add('gone');
+    setTimeout(() => card.remove(), 380);
+    toast('✕ Odrzucone (zapisane jako sygnał uczenia gustu).');
+  }
+
+  // ── warsztat ──
+  function tab(btn, which){
+    btn.parentElement.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-reel').style.display  = which === 'reel'  ? '' : 'none';
+    document.getElementById('tab-post').style.display = which === 'post' ? '' : 'none';
+  }
+  function acceptDraft(){
+    toast('✓ Zapisano parę „propozycja → final" w bibliotece stylu. Profil v15 za kilka godzin.');
+  }
+  function iterateDraft(){
+    const note = document.getElementById('note').value.trim();
+    if (!note) { toast('Wpisz uwagę — np. „za grzeczne", „mocniej", „zostaw samą liczbę”.'); return; }
+    const d = document.createElement('div');
+    d.className = 'lesson new';
+    d.innerHTML = '<span class="l-ico">→</span><span>z uwagi „' + escapeHtml(note) + '”: lekcja wyciągnięta z diffu v2 → v3</span>';
+    document.getElementById('lessons').prepend(d);
+    document.getElementById('note').value = '';
+    toast('✎ v3 w przygotowaniu. Uwaga trafiła do lekcji stylu — następny draft uwzględni ją od razu.');
+  }
+
+  // ── skrzynka zasiewów ──
+  function addSeed(){
+    const input = document.getElementById('seed-url');
+    if (!input.value.trim()) { toast('Wklej link do zasiania.'); return; }
+    input.value = '';
+    toast('🌱 Zasiew przyjęty. Trawiety w najbliższym przebiegu (≈30 min) — pełna karta jak zwykle.');
+  }
+
+  // ── propozycja źródła ──
+  function approveSource(btn){
+    btn.disabled = true; btn.textContent = '✓ Próba zatwierdzona (14 dni)';
+    toast('Źródło na 14-dniową próbę. Po okresie: raport rentowności i decyzja o tierze.');
+  }
+
+  // ── pomocnicze ──
+  function escapeHtml(s){
+    return s.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  }
+  let toastTimer;
+  function toast(msg){
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 4200);
+  }
+</script>
+</body>
+</html>
