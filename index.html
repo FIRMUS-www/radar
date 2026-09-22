@@ -23,6 +23,8 @@ let items=[],states={},savedOnly=false;
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function md(s){let x=esc(s||'');x=x.replace(/\*\*(.+?)\*\*/gs,'<strong>$1</strong>');return x.replace(/\n/g,'<br>')}
 function clean(t){return (t||'').replace(/^\[CONTENT\](?:\[[^\]]+\])*\s*CR-[0-9-]+\s*[\u2014-]\s*/i,'').trim()||t}
+function features(i){if(!i.content_features)return{};if(typeof i.content_features==='object')return i.content_features;try{return JSON.parse(i.content_features)}catch{return{}}}
+function bgFields(i){const f=features(i);const labels=[['FILAR BIZ GENERATORA',f.bg_pillar],['SERIA',f.bg_series],['DLA KOGO',f.target_person],['MODEL ZARABIANIA',f.business_model],['KOSZT / CZAS / TRUDNOŚĆ',[f.startup_cost,f.startup_time,f.difficulty].filter(Boolean).join(' · ')],['PIERWSZY KLIENT',f.first_customer_path],['GŁÓWNE RYZYKO',f.main_risk],['NAJMNIEJSZY TEST',f.smallest_test],['POWIĄZANIE',f.product_connection||f.assessment_connection]];return labels.map(([l,v])=>field(l,v)).join('')}
 function field(l,v){return v?`<div class="field"><div class="label">${l}</div><div class="value">${md(v)}</div></div>`:''}
 function stamp(i){const iso=i.created_at;if(!iso)return '00:00, 00.00';const p=Object.fromEntries(new Intl.DateTimeFormat('pl-PL',{timeZone:'Europe/Warsaw',hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit',hour12:false}).formatToParts(new Date(iso)).filter(x=>x.type!=='literal').map(x=>[x.type,x.value]));return `${p.hour}:${p.minute}, ${p.day}.${p.month}`}
 function status(i){return i.audit_status||i.fact_check_status||''}
