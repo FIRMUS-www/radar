@@ -51,9 +51,8 @@ let items=[],states={},savedOnly=false,profile=localStorage.getItem('cr_profile'
 if(!PROFILES[profile])profile='bizgenerator';
 
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function md(s){let x=esc(s||'');x=x.replace(/**(.+?)**/gs,'<strong>$1</strong>');return x.replace(/
-/g,'<br>')}
-function clean(t){return (t||'').replace(/^[CONTENT](?:[[^]]+])*s*CR-[0-9-]+s*[—-]s*/i,'').trim()||t}
+function md(s){let x=esc(s||'');x=x.replace(/\*\*(.+?)\*\*/gs,'<strong>$1</strong>');return x.replace(/\n/g,'<br>')}
+function clean(t){return (t||'').replace(/^\[CONTENT\](?:\[[^\]]+\])*\s*CR-[0-9-]+\s*[\u2014-]\s*/i,'').trim()||t}
 function features(i){if(!i.content_features)return{};if(typeof i.content_features==='object')return i.content_features;try{return JSON.parse(i.content_features)}catch{return{}}}
 function profileKeys(i){const f=features(i),keys=Array.isArray(f.profile_keys)?f.profile_keys.filter(k=>PROFILES[k]):[];return keys.length?keys:['accounting']}
 function belongs(i){return profileKeys(i).includes(profile)}
