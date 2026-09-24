@@ -13,10 +13,12 @@ Architektura:
 
 ```
 wspólny collector / research engine
+→ wspólny katalog techniczny źródeł
+→ autonomiczna konfiguracja źródeł per profil
 → wspólna deduplikacja
 → wspólny magazyn kandydatów
 → niezależna ocena relewancji per profil
-→ osobne feedy, reakcje, zapisane i źródła per profil
+→ osobne feedy, reakcje i zapisane per profil
 ```
 
 Ten sam kandydat może należeć do więcej niż jednego profilu. Wtedy istnieje jeden CR, ale jest widoczny w obu feedach.
@@ -85,6 +87,8 @@ Do `profile_keys` trafia profil z relewancją >=55.
 
 Jeśli oba profile mają relewancję >=55, kandydat jest wspólny i nie tworzymy duplikatu CR.
 
+Pola `bg_pillar` należące do rdzenia Biz Generatora (`business_idea`, `person_idea_fit`, `first_sale`, `tool_resource`, `cost_risk_formality`, `build_in_public`) nie mogą zostać automatycznie sklasyfikowane jako `accounting` przez fallback lub brak metadanych. Taki rekord wymaga jawnej oceny profilu, a domyślnym kontekstem jest `bizgenerator`.
+
 ## 4. Reakcje i stan użytkownika
 
 Reakcje są niezależne per profil.
@@ -107,20 +111,34 @@ w jednym profilu nie może zmieniać stanu tego samego CR w drugim profilu.
 
 Historyczny `content_radar_profiles/default-selection` pozostaje globalnym profilem uczenia legacy i może być najwyżej pomocniczym sygnałem. Nie może nadpisywać niezależnej relewancji profili projektowych.
 
-## 5. Źródła
+## 5. Źródła — autonomia profili
 
-Rejestr źródeł jest wspólny:
-`public.content_radar_sources`
+`public.content_radar_sources` jest wspólnym **katalogiem technicznym źródeł**. Przechowuje tożsamość źródła: nazwę, URL, typ, kategorię i metadane wspólne.
 
-Każde źródło ma:
-`profile_keys text[]`
+Operacyjna konfiguracja źródła należy do:
 
-Możliwe przypisanie:
-- tylko Biz Generator,
-- tylko Księgowość / BIZ+,
-- oba profile.
+`public.content_radar_profile_sources`
 
-`active` pozostaje globalnym stanem technicznym źródła.
+Klucz logiczny:
+`(source_id, profile_key)`
+
+Każdy profil ma własne:
+- przypisanie źródła,
+- `active`,
+- `priority`,
+- opcjonalną notatkę profilową.
+
+Brak rekordu w `content_radar_profile_sources` oznacza, że źródło **nie należy do danego profilu** i nie może być używane jako źródło rejestrowe tego profilu.
+
+To samo źródło może należeć do obu profili, ale:
+- wyłączenie go w BG nie wyłącza go w KSI,
+- zmiana priorytetu w BG nie zmienia priorytetu w KSI,
+- usunięcie z BG usuwa tylko przypisanie BG,
+- dodanie źródła z ekranu BG przypisuje je domyślnie tylko do BG.
+
+Pola `content_radar_sources.profile_keys`, `active` i `priority` są od 2026-09-24 wyłącznie **legacy mirror** dla zgodności przejściowej. Nie mogą sterować nowym researchem.
+
+Profil Biz Generator nie dziedziczy automatycznie źródeł Księgowości. Wspólny katalog nie oznacza wspólnego feedu źródeł.
 
 ## 6. UX
 
@@ -135,7 +153,13 @@ Zmiana profilu zmienia jednocześnie:
 - liczniki,
 - kontekst kandydata,
 - kolor akcentu,
-- link do źródeł.
+- źródła.
+
+Na stronie źródeł przełącznik profilu pokazuje wyłącznie źródła przypisane do wybranego profilu. Użytkownik może niezależnie:
+- dodać źródło do aktualnego profilu,
+- włączyć/wyłączyć je,
+- zmienić priorytet,
+- usunąć je z profilu.
 
 Kolory są funkcjonalnym kodem kontekstu:
 - BG = magenta,
