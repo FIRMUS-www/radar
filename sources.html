@@ -17,34 +17,84 @@
 .dialog{width:min(680px,calc(100vw - 32px));border:1px solid #363d43;border-radius:20px;background:#111519;color:var(--text);padding:0;box-shadow:0 24px 90px #000a}.dialog::backdrop{background:#000b}.form-head{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;padding:24px 24px 18px;border-bottom:1px solid var(--line)}.form-head h2{margin:0;font-size:30px;letter-spacing:-.04em}.form-head p{margin:7px 0 0;color:var(--muted);font-size:14px}.close{border:0;background:transparent;color:#fff;font-size:28px;cursor:pointer}.form{padding:22px 24px 24px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.field{display:flex;flex-direction:column;gap:7px}.field.full{grid-column:1/-1}.field label,.field .field-label{font-size:12px;font-weight:900;letter-spacing:.06em;text-transform:uppercase;color:#9aa3aa}.field input,.field select,.field textarea{width:100%;border:1px solid #343a40;border-radius:12px;background:#0c1013;color:#fff;padding:12px 13px;outline:none}.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--accent)}.field textarea{min-height:90px;resize:vertical}.hint{font-size:12px;color:var(--muted)}.checks{display:flex;gap:14px;flex-wrap:wrap;border:1px solid #343a40;border-radius:12px;padding:12px 13px;background:#0c1013}.checks label{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:750;text-transform:none;letter-spacing:0;color:#fff}.checks input{width:18px;height:18px;accent-color:var(--accent)}
 .form-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}.msg{margin-top:14px;font-size:13px}.msg.bad{color:var(--danger)}.msg.ok{color:var(--accent)}
 @media(max-width:760px){.top{display:block}.actions{margin-top:22px}.title h1{font-size:44px}.sources{grid-template-columns:1fr}.grid{grid-template-columns:1fr}.field.full{grid-column:auto}.form-actions{flex-direction:column-reverse}.form-actions .btn{width:100%}}
+
+/* profile-autonomy UI */
+.viewbar,.profile-chip,.checks{display:none!important}
+.source{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:start;gap:10px;border:1px solid var(--line);background:var(--card);border-radius:12px;padding:14px;min-height:78px}
+.source-body{min-width:0}.source-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}.source-copy{min-width:0}.name{font-weight:800;line-height:1.25}
+.source-meta{grid-column:auto!important;margin-top:8px;color:var(--muted);font-size:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}.source-meta a{color:var(--muted)}
+.source-controls{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap}
+.priority-control{width:auto!important;border:1px solid #343a40;border-radius:999px;background:#101417;color:var(--accent);font-size:12px;font-weight:900;padding:7px 9px;cursor:pointer}
+.remove{border:1px solid #5e3434;border-radius:999px;background:#171112;color:#ffb1b1;font-size:12px;font-weight:850;padding:7px 10px;cursor:pointer}.remove:hover{border-color:var(--danger);color:#fff}
+.shared{border-color:#4b5258;color:#c8cdd1}.profile-target{display:inline-flex;align-items:center;border:1px solid var(--accent);border-radius:999px;padding:5px 9px;color:var(--accent);font-size:12px;font-weight:900}
+@media(max-width:760px){.source-head{display:block}.source-controls{justify-content:flex-start;margin-top:11px}.priority-control,.toggle,.remove{min-height:36px}}
+
 </style>
 </head>
 <body><main>
 <div class="top">
-  <div><div class="title"><span class="mark">📡</span><h1>Źródła CR</h1></div><p class="intro">Wspólny rejestr źródeł, ale osobne profile researchu. Źródło może należeć do Biz Generatora, Księgowości / BIZ+ albo do obu.</p></div>
+  <div>
+    <div class="title"><span class="mark">📡</span><h1>Źródła CR</h1></div>
+    <p class="intro">Każdy profil ma własną listę źródeł, własny priorytet i własny stan aktywności. Zmiana lub usunięcie źródła tutaj nie zmienia konfiguracji drugiego profilu.</p>
+  </div>
   <div class="actions"><a class="btn" id="backLink" href="/">← Content Radar</a><button class="btn add" id="addBtn">+ DODAJ ŹRÓDŁO</button></div>
 </div>
-<div class="profilebar"><div class="profile-tabs" id="profileTabs"></div><div class="profile-subtitle" id="profileSubtitle"></div></div>
-<div class="viewbar"><button class="btn" id="showAllBtn">Wszystkie źródła</button></div>
-<div class="meta" id="meta">Ładowanie rejestru źródeł…</div>
+
+<div class="profilebar">
+  <div class="profile-tabs" id="profileTabs"></div>
+  <div class="profile-subtitle" id="profileSubtitle"></div>
+</div>
+
+<div class="meta" id="meta">Ładowanie źródeł profilu…</div>
 <section id="groups"><div class="loading">Ładowanie…</div></section>
-<div class="footer">Rejestr źródeł i przypisanie do profili są zapisywane bezpośrednio w Supabase.</div>
+<div class="footer">Wspólny jest tylko katalog techniczny. Przypisanie, aktywność i priorytet źródła są niezależne dla każdego profilu.</div>
 </main>
 
 <dialog class="dialog" id="sourceDialog">
-  <div class="form-head"><div><h2>Dodaj źródło</h2><p>Wybierz profil lub oba profile. To określa, który research będzie z niego korzystał.</p></div><button class="close" id="closeBtn" aria-label="Zamknij">×</button></div>
+  <div class="form-head">
+    <div>
+      <h2>Dodaj źródło</h2>
+      <p>Źródło zostanie dodane tylko do profilu <span class="profile-target" id="dialogProfile"></span>.</p>
+    </div>
+    <button class="close" id="closeBtn" aria-label="Zamknij">×</button>
+  </div>
   <form class="form" id="sourceForm">
     <div class="grid">
-      <div class="field full"><label for="name">Nazwa źródła</label><input id="name" name="name" placeholder="np. społeczność lokalnych usługodawców" required maxlength="180"></div>
+      <div class="field full"><label for="name">Nazwa źródła</label><input id="name" name="name" placeholder="np. kanał o małych biznesach" required maxlength="180"></div>
       <div class="field full"><label for="url">URL</label><input id="url" name="url" type="url" placeholder="https://..." required></div>
-      <div class="field full"><span class="field-label">Profile</span><div class="checks"><label><input type="checkbox" name="profile_keys" value="bizgenerator" id="profileBg"> Biz Generator</label><label><input type="checkbox" name="profile_keys" value="accounting" id="profileAccounting"> Księgowość / BIZ+</label></div><span class="hint">Co najmniej jeden profil musi być zaznaczony.</span></div>
-      <div class="field"><label for="category">Kategoria</label><select id="category" name="category"><option>Oficjalne, prawo i administracja</option><option>Dane, raporty, trendy i finansowanie</option><option>Organizacje przedsiębiorców i branże</option><option>Media gospodarcze, prawne i biznesowe</option><option>Konkurencja / obserwacja rynku księgowości</option><option>Social, dyskusje i sygnały intencji</option><option>Inne</option></select></div>
-      <div class="field"><label for="source_type">Typ</label><select id="source_type" name="source_type"><option value="official">Oficjalne</option><option value="media">Media</option><option value="data">Dane / raport</option><option value="expert">Ekspert / kancelaria</option><option value="social">Social</option><option value="organization">Organizacja</option><option value="competitor">Konkurencja</option><option value="trend">Trend</option><option value="intent">Sygnał intencji</option><option value="website" selected>Serwis WWW</option></select></div>
-      <div class="field"><label for="priority">Priorytet</label><select id="priority" name="priority"><option value="5">5 - bardzo wysoki</option><option value="4">4 - wysoki</option><option value="3" selected>3 - normalny</option><option value="2">2 - niski</option><option value="1">1 - eksperymentalny</option></select><span class="hint">Wyższy priorytet = częstsze wykorzystanie przy researchu.</span></div>
+      <div class="field"><label for="category">Kategoria</label><select id="category" name="category">
+        <option>Oficjalne, prawo i administracja</option>
+        <option>Dane, raporty, trendy i finansowanie</option>
+        <option>Organizacje przedsiębiorców i branże</option>
+        <option>Media gospodarcze, prawne i biznesowe</option>
+        <option>Konkurencja / obserwacja rynku księgowości</option>
+        <option>Social, dyskusje i sygnały intencji</option>
+        <option selected>Inne</option>
+      </select></div>
+      <div class="field"><label for="source_type">Typ</label><select id="source_type" name="source_type">
+        <option value="youtube">YouTube</option>
+        <option value="official">Oficjalne</option>
+        <option value="media">Media</option>
+        <option value="data">Dane / raport</option>
+        <option value="expert">Ekspert / kancelaria</option>
+        <option value="social">Social</option>
+        <option value="organization">Organizacja</option>
+        <option value="competitor">Konkurencja</option>
+        <option value="trend">Trend</option>
+        <option value="intent">Sygnał intencji</option>
+        <option value="website" selected>Serwis WWW</option>
+      </select></div>
+      <div class="field"><label for="priority">Priorytet w tym profilu</label><select id="priority" name="priority">
+        <option value="5">5 — bardzo wysoki</option>
+        <option value="4">4 — wysoki</option>
+        <option value="3" selected>3 — normalny</option>
+        <option value="2">2 — niski</option>
+        <option value="1">1 — eksperymentalny</option>
+      </select><span class="hint">Priorytet dotyczy wyłącznie aktualnego profilu.</span></div>
       <div class="field"><label for="notes">Notatka</label><textarea id="notes" name="notes" placeholder="Opcjonalnie: czego dokładnie tu szukać…"></textarea></div>
     </div>
     <div class="msg" id="formMsg"></div>
-    <div class="form-actions"><button type="button" class="btn" id="cancelBtn">Anuluj</button><button type="submit" class="btn add" id="saveBtn">DODAJ DO RADARU</button></div>
+    <div class="form-actions"><button type="button" class="btn" id="cancelBtn">Anuluj</button><button type="submit" class="btn add" id="saveBtn">DODAJ DO PROFILU</button></div>
   </form>
 </dialog>
 
@@ -54,29 +104,162 @@ const PROFILES={
   accounting:{key:'accounting',label:'Księgowość / BIZ+',short:'KSI',accent:'#e6fa24',subtitle:'JDG · ryczałt · podatki · ZUS · KSeF · księgowość · BIZ+'}
 };
 const API='https://oxpvuxxcskqggfqgefzg.supabase.co/functions/v1/content-radar-sources';
-const root=document.querySelector('#groups'),meta=document.querySelector('#meta'),dialog=document.querySelector('#sourceDialog'),form=document.querySelector('#sourceForm'),msg=document.querySelector('#formMsg'),saveBtn=document.querySelector('#saveBtn'),profileTabs=document.querySelector('#profileTabs'),profileSubtitle=document.querySelector('#profileSubtitle'),showAllBtn=document.querySelector('#showAllBtn'),backLink=document.querySelector('#backLink');
-let sources=[],showAll=false;
+const root=document.querySelector('#groups'),meta=document.querySelector('#meta'),dialog=document.querySelector('#sourceDialog'),form=document.querySelector('#sourceForm'),msg=document.querySelector('#formMsg'),saveBtn=document.querySelector('#saveBtn'),profileTabs=document.querySelector('#profileTabs'),profileSubtitle=document.querySelector('#profileSubtitle'),backLink=document.querySelector('#backLink'),dialogProfile=document.querySelector('#dialogProfile');
+let sources=[];
 const qProfile=new URLSearchParams(location.search).get('profile_key');
 let profile=PROFILES[qProfile]?qProfile:localStorage.getItem('cr_profile');
 if(!PROFILES[profile])profile='bizgenerator';
 
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function profilesOf(s){const p=Array.isArray(s.profile_keys)?s.profile_keys.filter(k=>PROFILES[k]):[];return p.length?p:['bizgenerator','accounting']}
-function applyTheme(){const p=PROFILES[profile];document.documentElement.style.setProperty('--accent',p.accent);document.documentElement.style.setProperty('--accent-soft',p.accent==='#ff008c'?'rgba(255,0,140,.11)':'rgba(230,250,36,.11)');profileSubtitle.textContent=p.subtitle;backLink.href='/?profile_key='+encodeURIComponent(profile);profileTabs.innerHTML=Object.values(PROFILES).map(p=>'<button class="profile-tab'+(p.key===profile?' active':'')+'" data-profile="'+p.key+'">'+esc(p.label)+'</button>').join('');document.querySelectorAll('[data-profile]').forEach(b=>b.onclick=()=>switchProfile(b.dataset.profile));showAllBtn.classList.toggle('active',showAll)}
-function switchProfile(next){if(!PROFILES[next]||next===profile)return;profile=next;localStorage.setItem('cr_profile',profile);history.replaceState(null,'','?profile_key='+encodeURIComponent(profile));showAll=false;applyTheme();render()}
-function profileChips(s){const keys=profilesOf(s);return Object.values(PROFILES).map(p=>'<button class="profile-chip '+(keys.includes(p.key)?'on ':'')+(p.key!==profile?'other':'')+'" data-membership="'+esc(s.id)+'" data-key="'+p.key+'" title="Zmień przypisanie">'+p.short+'</button>').join('')}
-function sourceCard(s){const url=s.url?'<a href="'+esc(s.url)+'" target="_blank" rel="noopener">otwórz ↗</a>':'brak URL';return '<div class="source'+(s.active?'':' off')+'" data-id="'+esc(s.id)+'"><span class="dot"></span><span class="name">'+esc(s.name)+'</span><button class="toggle" data-toggle="'+esc(s.id)+'" data-active="'+(s.active?'1':'0')+'">'+(s.active?'AKTYWNE':'WYŁĄCZONE')+'</button><div class="source-meta"><span class="pill">'+esc(s.source_type)+'</span><span class="pill priority">P'+esc(s.priority)+'</span>'+profileChips(s)+'<span>'+url+'</span></div></div>'}
-function visibleSources(){return showAll?sources:sources.filter(s=>profilesOf(s).includes(profile))}
-function render(){const visible=visibleSources(),groups={};for(const s of visible){(groups[s.category]??=[]).push(s)}const active=visible.filter(s=>s.active).length;meta.innerHTML='<strong>'+active+' aktywnych źródeł</strong> · '+visible.length+' widocznych · '+PROFILES[profile].label+(showAll?' · widok wszystkich':'');root.innerHTML=Object.keys(groups).length?Object.entries(groups).map(([title,items])=>'<details class="group" open><summary><h2>'+esc(title)+'</h2><span class="count">'+items.filter(x=>x.active).length+'/'+items.length+'</span></summary><div class="sources">'+items.map(sourceCard).join('')+'</div></details>').join(''):'<div class="loading">Brak źródeł w tym profilu.</div>';document.querySelectorAll('[data-toggle]').forEach(btn=>btn.onclick=()=>toggleSource(btn));document.querySelectorAll('[data-membership]').forEach(btn=>btn.onclick=()=>toggleMembership(btn));showAllBtn.classList.toggle('active',showAll)}
-async function load(){try{const r=await fetch(API,{cache:'no-store'}),b=await r.json();if(!r.ok||!b.ok)throw new Error(b.error||('HTTP '+r.status));sources=b.sources||[];render()}catch(e){meta.textContent='';root.innerHTML='<div class="error">Nie udało się wczytać źródeł: '+esc(e.message)+'</div>'}}
-async function patchSource(id,patch){const r=await fetch(API,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,...patch})}),b=await r.json();if(!r.ok||!b.ok)throw new Error(b.error||('HTTP '+r.status));const ix=sources.findIndex(x=>x.id===id);if(ix>=0)sources[ix]={...sources[ix],...b.source};render()}
-async function toggleSource(btn){const id=btn.dataset.toggle,active=btn.dataset.active==='1';btn.disabled=true;try{await patchSource(id,{active:!active})}catch(e){alert('Nie udało się zmienić źródła: '+e.message)}finally{btn.disabled=false}}
-async function toggleMembership(btn){const id=btn.dataset.membership,key=btn.dataset.key,s=sources.find(x=>x.id===id);if(!s)return;const keys=profilesOf(s),has=keys.includes(key),next=has?keys.filter(x=>x!==key):[...keys,key];if(!next.length){alert('Źródło musi należeć do co najmniej jednego profilu.');return}btn.disabled=true;try{await patchSource(id,{profile_keys:next})}catch(e){alert('Nie udało się zmienić profilu źródła: '+e.message)}finally{btn.disabled=false}}
-function openDialog(){msg.textContent='';msg.className='msg';form.reset();document.querySelector('#priority').value='3';document.querySelector('#profileBg').checked=profile==='bizgenerator';document.querySelector('#profileAccounting').checked=profile==='accounting';dialog.showModal();setTimeout(()=>document.querySelector('#name').focus(),50)}
+function applyTheme(){
+  const p=PROFILES[profile];
+  document.documentElement.style.setProperty('--accent',p.accent);
+  document.documentElement.style.setProperty('--accent-soft',p.accent==='#ff008c'?'rgba(255,0,140,.11)':'rgba(230,250,36,.11)');
+  profileSubtitle.textContent=p.subtitle;
+  backLink.href='/?profile_key='+encodeURIComponent(profile);
+  profileTabs.innerHTML=Object.values(PROFILES).map(x=>'<button class="profile-tab'+(x.key===profile?' active':'')+'" data-profile="'+x.key+'">'+esc(x.label)+'</button>').join('');
+  document.querySelectorAll('[data-profile]').forEach(b=>b.onclick=()=>switchProfile(b.dataset.profile));
+}
+async function switchProfile(next){
+  if(!PROFILES[next]||next===profile)return;
+  profile=next;
+  localStorage.setItem('cr_profile',profile);
+  history.replaceState(null,'','?profile_key='+encodeURIComponent(profile));
+  applyTheme();
+  await load();
+}
+function sharedLabel(s){
+  const keys=Array.isArray(s.assigned_profiles)?s.assigned_profiles:[];
+  const other=keys.find(k=>k!==profile&&PROFILES[k]);
+  return other?'<span class="pill shared">także '+esc(PROFILES[other].short)+'</span>':'';
+}
+function priorityOptions(current){
+  return [5,4,3,2,1].map(v=>'<option value="'+v+'"'+(Number(current)===v?' selected':'')+'>P'+v+'</option>').join('');
+}
+function sourceCard(s){
+  const url=s.url?'<a href="'+esc(s.url)+'" target="_blank" rel="noopener">otwórz ↗</a>':'brak URL';
+  return '<div class="source'+(s.active?'':' off')+'" data-id="'+esc(s.id)+'">'+
+    '<span class="dot"></span>'+
+    '<div class="source-body"><div class="source-head"><div class="source-copy"><div class="name">'+esc(s.name)+'</div>'+
+    '<div class="source-meta"><span class="pill">'+esc(s.source_type)+'</span>'+sharedLabel(s)+'<span>'+url+'</span></div></div>'+
+    '<div class="source-controls">'+
+      '<select class="priority-control" data-priority="'+esc(s.id)+'" aria-label="Priorytet źródła">'+priorityOptions(s.priority)+'</select>'+
+      '<button class="toggle" data-toggle="'+esc(s.id)+'" data-active="'+(s.active?'1':'0')+'">'+(s.active?'AKTYWNE':'WYŁĄCZONE')+'</button>'+
+      '<button class="remove" data-remove="'+esc(s.id)+'">USUŃ</button>'+
+    '</div></div></div></div>';
+}
+function render(){
+  const groups={};
+  for(const s of sources)(groups[s.category]??=[]).push(s);
+  const active=sources.filter(s=>s.active).length;
+  const yt=sources.filter(s=>String(s.source_type).toLowerCase()==='youtube'||String(s.url||'').includes('youtube.com')).length;
+  meta.innerHTML='<strong>'+active+' aktywnych źródeł</strong> · '+sources.length+' przypisanych · '+yt+' YouTube · '+esc(PROFILES[profile].label);
+  root.innerHTML=Object.keys(groups).length
+    ?Object.entries(groups).map(([title,items])=>'<details class="group" open><summary><h2>'+esc(title)+'</h2><span class="count">'+items.filter(x=>x.active).length+'/'+items.length+'</span></summary><div class="sources">'+items.map(sourceCard).join('')+'</div></details>').join('')
+    :'<div class="loading">Brak źródeł w tym profilu. Dodaj pierwsze źródło przyciskiem u góry.</div>';
+  document.querySelectorAll('[data-toggle]').forEach(btn=>btn.onclick=()=>toggleSource(btn));
+  document.querySelectorAll('[data-priority]').forEach(sel=>sel.onchange=()=>changePriority(sel));
+  document.querySelectorAll('[data-remove]').forEach(btn=>btn.onclick=()=>removeSource(btn));
+}
+async function load(){
+  meta.textContent='Ładowanie źródeł profilu…';
+  root.innerHTML='<div class="loading">Ładowanie…</div>';
+  try{
+    const r=await fetch(API+'?profile_key='+encodeURIComponent(profile),{cache:'no-store'});
+    const b=await r.json();
+    if(!r.ok||!b.ok)throw new Error(b.error||('HTTP '+r.status));
+    sources=b.sources||[];
+    render();
+  }catch(e){
+    meta.textContent='';
+    root.innerHTML='<div class="error">Nie udało się wczytać źródeł: '+esc(e.message)+'</div>';
+  }
+}
+async function patchSource(id,patch){
+  const r=await fetch(API,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,profile_key:profile,...patch})});
+  const b=await r.json();
+  if(!r.ok||!b.ok)throw new Error(b.error||('HTTP '+r.status));
+  const ix=sources.findIndex(x=>x.id===id);
+  if(ix>=0&&b.source)sources[ix]={...sources[ix],...b.source};
+  render();
+}
+async function toggleSource(btn){
+  const id=btn.dataset.toggle,active=btn.dataset.active==='1';
+  btn.disabled=true;
+  try{await patchSource(id,{active:!active})}
+  catch(e){alert('Nie udało się zmienić źródła: '+e.message)}
+  finally{btn.disabled=false}
+}
+async function changePriority(sel){
+  const id=sel.dataset.priority;
+  sel.disabled=true;
+  try{await patchSource(id,{priority:Number(sel.value)})}
+  catch(e){alert('Nie udało się zmienić priorytetu: '+e.message);await load()}
+  finally{sel.disabled=false}
+}
+async function removeSource(btn){
+  const id=btn.dataset.remove,s=sources.find(x=>x.id===id);
+  if(!s)return;
+  const ok=confirm('Usunąć „'+s.name+'” z profilu '+PROFILES[profile].label+'?\n\nJeśli źródło jest przypisane do drugiego profilu, pozostanie tam bez zmian.');
+  if(!ok)return;
+  btn.disabled=true;
+  try{
+    const r=await fetch(API,{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,profile_key:profile})});
+    const b=await r.json();
+    if(!r.ok||!b.ok)throw new Error(b.error||('HTTP '+r.status));
+    sources=sources.filter(x=>x.id!==id);
+    render();
+  }catch(e){
+    alert('Nie udało się usunąć źródła z profilu: '+e.message);
+    btn.disabled=false;
+  }
+}
+function openDialog(){
+  msg.textContent='';msg.className='msg';form.reset();
+  document.querySelector('#priority').value='3';
+  document.querySelector('#category').value='Inne';
+  document.querySelector('#source_type').value='website';
+  dialogProfile.textContent=PROFILES[profile].label;
+  dialog.showModal();
+  setTimeout(()=>document.querySelector('#name').focus(),50);
+}
 function closeDialog(){dialog.close()}
-showAllBtn.onclick=()=>{showAll=!showAll;render()};
-document.querySelector('#addBtn').onclick=openDialog;document.querySelector('#closeBtn').onclick=closeDialog;document.querySelector('#cancelBtn').onclick=closeDialog;dialog.addEventListener('click',e=>{if(e.target===dialog)closeDialog()});
-form.addEventListener('submit',async e=>{e.preventDefault();msg.textContent='';msg.className='msg';saveBtn.disabled=true;saveBtn.textContent='DODAJĘ…';const fd=new FormData(form),data=Object.fromEntries(fd.entries());data.priority=Number(data.priority);data.profile_keys=fd.getAll('profile_keys');if(!data.profile_keys.length){msg.textContent='Wybierz co najmniej jeden profil.';msg.className='msg bad';saveBtn.disabled=false;saveBtn.textContent='DODAJ DO RADARU';return}try{const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}),b=await r.json();if(!r.ok||!b.ok){const map={DUPLICATE_SOURCE:'To źródło już istnieje.',INVALID_URL:'Adres URL jest niepoprawny.',NAME_REQUIRED:'Podaj nazwę źródła.'};throw new Error(map[b.error]||b.error||('HTTP '+r.status))}msg.textContent='Dodano do Radaru.';msg.className='msg ok';await load();setTimeout(closeDialog,500)}catch(err){msg.textContent=err.message;msg.className='msg bad'}finally{saveBtn.disabled=false;saveBtn.textContent='DODAJ DO RADARU'}});
-applyTheme();load();
+document.querySelector('#addBtn').onclick=openDialog;
+document.querySelector('#closeBtn').onclick=closeDialog;
+document.querySelector('#cancelBtn').onclick=closeDialog;
+dialog.addEventListener('click',e=>{if(e.target===dialog)closeDialog()});
+
+form.addEventListener('submit',async e=>{
+  e.preventDefault();
+  msg.textContent='';msg.className='msg';
+  saveBtn.disabled=true;saveBtn.textContent='DODAJĘ…';
+  const fd=new FormData(form),data=Object.fromEntries(fd.entries());
+  data.priority=Number(data.priority);
+  data.profile_key=profile;
+  try{
+    const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+    const b=await r.json();
+    if(!r.ok||!b.ok){
+      const map={
+        DUPLICATE_SOURCE:'To źródło już istnieje.',
+        DUPLICATE_SOURCE_NAME:'Źródło o tej nazwie już istnieje z innym adresem.',
+        INVALID_URL:'Adres URL jest niepoprawny.',
+        NAME_REQUIRED:'Podaj nazwę źródła.'
+      };
+      throw new Error(map[b.error]||b.error||('HTTP '+r.status));
+    }
+    msg.textContent='Dodano do profilu '+PROFILES[profile].label+'.';
+    msg.className='msg ok';
+    await load();
+    setTimeout(closeDialog,450);
+  }catch(err){
+    msg.textContent=err.message;msg.className='msg bad';
+  }finally{
+    saveBtn.disabled=false;saveBtn.textContent='DODAJ DO PROFILU';
+  }
+});
+
+applyTheme();
+load();
 </script>
 </body></html>
