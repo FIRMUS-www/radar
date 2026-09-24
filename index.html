@@ -54,7 +54,7 @@ function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&l
 function md(s){let x=esc(s||'');x=x.replace(/\*\*(.+?)\*\*/gs,'<strong>$1</strong>');return x.replace(/\n/g,'<br>')}
 function clean(t){return (t||'').replace(/^\[CONTENT\](?:\[[^\]]+\])*\s*CR-[0-9-]+\s*[\u2014-]\s*/i,'').trim()||t}
 function features(i){if(!i.content_features)return{};if(typeof i.content_features==='object')return i.content_features;try{return JSON.parse(i.content_features)}catch{return{}}}
-function profileKeys(i){const f=features(i),keys=Array.isArray(f.profile_keys)?f.profile_keys.filter(k=>PROFILES[k]):[];return keys.length?keys:['accounting']}
+function profileKeys(i){const f=features(i),keys=Array.isArray(f.profile_keys)?f.profile_keys.filter(k=>PROFILES[k]):[];if(keys.length)return keys;if(f.bg_pillar)return ['bizgenerator'];return ['accounting']}
 function belongs(i){return profileKeys(i).includes(profile)}
 function profileInfo(i){const f=features(i),p=f.radar_profiles&&typeof f.radar_profiles==='object'?f.radar_profiles[profile]:null;return p&&typeof p==='object'?p:{}}
 function pillar(i){const f=features(i),p=profileInfo(i);return p.pillar||(profile==='bizgenerator'?f.bg_pillar:f.accounting_pillar)||''}
