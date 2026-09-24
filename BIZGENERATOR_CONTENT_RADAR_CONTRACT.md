@@ -40,6 +40,19 @@ Księgowość nie jest usuwana. Kandydat księgowy powinien zostać przypisany d
 
 Social media i komentarze są źródłem sygnału oraz języka odbiorców. Fakty, liczby i wymagania należy potwierdzać w źródłach pierwotnych.
 
+
+### Autonomia źródeł Biz Generatora
+
+Biz Generator nie dziedziczy automatycznie rejestru źródeł profilu księgowego.
+
+Runtime źródeł ma dwie warstwy:
+- `public.content_radar_sources` — wspólny katalog techniczny;
+- `public.content_radar_profile_sources` — przypisanie, aktywność i priorytet źródła w konkretnym profilu.
+
+Dla researchu BG używaj tylko źródeł z rekordem `profile_key='bizgenerator'` i `active=true`. Priorytet pobieraj z rekordu profilowego. Brak przypisania oznacza brak źródła w BG, nawet jeśli istnieje ono w katalogu globalnym lub w profilu `accounting`.
+
+Źródła podatkowe i księgowe mogą trafić do BG tylko wtedy, gdy zostały jawnie przypisane do BG i wspierają konkretny etap startu, ocenę modelu, koszt, ryzyko lub formalność. Sam fakt, że źródło jest wartościowe dla Księgowości, nie jest wystarczający.
+
 ## Kontrakt kandydata
 
 Nowe pola są zapisywane w istniejącym polu JSON `content_features`, dzięki czemu pivot nie wymaga natychmiastowej migracji bazy:
