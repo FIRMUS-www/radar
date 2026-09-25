@@ -1,7 +1,7 @@
 # CONTENT RADAR — PROFILE ARCHITECTURE SOT
 
 **Status:** kanoniczny  
-**Data:** 2026-09-24
+**Data:** 2026-09-25
 
 ## 1. Zasada nadrzędna
 
@@ -174,3 +174,35 @@ Nowy profil dodajemy wtedy, gdy zmienia się funkcja wyszukiwania i oceny materi
 Najlepsza Księgowość, BIZ+, FNR i Zmieniamy Księgowość korzystają obecnie ze wspólnego profilu `accounting`.
 
 Nie tworzymy osobnego engine'u dla kolejnego profilu.
+
+
+## 8. Telemetria przebiegów researchu
+
+Od 2026-09-25 każdy pełny przebieg Content Radaru musi zostawić audytowalny ślad dla **obu profili**, niezależnie od tego, czy powstał kandydat.
+
+Runtime:
+- `public.content_radar_profile_runs` — jeden rekord na `(run_id, profile_key)`;
+- `public.content_radar_source_scans` — szczegółowy log faktycznie sprawdzonych źródeł rejestrowych.
+
+Minimalny przebieg:
+1. utwórz `STARTED` osobno dla `bizgenerator` i `accounting`;
+2. pobierz aktywne źródła profilu z `content_radar_profile_sources`;
+3. wykonaj rzeczywisty research profilu;
+4. dla każdego faktycznie sprawdzonego źródła rejestrowego zapisz `content_radar_source_scans.profile_key` i `source_id`;
+5. po researchu zaktualizuj rekord profilu do `COMPLETED` albo `ERROR`.
+
+`COMPLETED` jest dozwolone tylko wtedy, gdy przebieg wykonał co najmniej jedną mierzalną akcję researchową: sprawdzenie źródła rejestrowego lub szerokie zapytanie web. Zero kandydatów jest poprawnym wynikiem. Zero researchu nie jest poprawnym wynikiem.
+
+Każdy profil raportuje co najmniej:
+- liczbę aktywnych źródeł rejestrowych,
+- liczbę faktycznie sprawdzonych źródeł,
+- liczbę szerokich zapytań web,
+- materiały zauważone/przeczytane,
+- kandydatów rozważonych i utworzonych,
+- listę utworzonych CR,
+- błąd, jeśli przebieg nie został zakończony poprawnie.
+
+Kolejność pełnego przebiegu jest jawna:
+`BG research → telemetria BG → KSI research → telemetria KSI → wspólna deduplikacja/zapis`.
+
+Telemetria służy do odpowiedzi na pytanie „co Radar rzeczywiście zrobił”, a nie do wymuszania liczby kandydatów.
