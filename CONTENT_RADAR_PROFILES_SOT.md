@@ -191,7 +191,7 @@ Minimalny przebieg:
 4. dla każdego faktycznie sprawdzonego źródła rejestrowego zapisz `content_radar_source_scans.profile_key` i `source_id`;
 5. po researchu zaktualizuj rekord profilu do `COMPLETED` albo `ERROR`.
 
-`COMPLETED` jest dozwolone tylko wtedy, gdy przebieg wykonał co najmniej jedną mierzalną akcję researchową: sprawdzenie źródła rejestrowego lub szerokie zapytanie web. Zero kandydatów jest poprawnym wynikiem. Zero researchu nie jest poprawnym wynikiem.
+`COMPLETED` jest dozwolone tylko wtedy, gdy przebieg wykonał mierzalny research. Jeżeli profil ma aktywne źródła rejestrowe, pełny przebieg musi faktycznie sprawdzić co najmniej `min(3, active_registry_sources)` źródła; szeroki web research nie może zastąpić tego minimum. Źródła wybieraj rotacyjnie, preferując wyższy priorytet oraz źródła najdawniej realnie sprawdzane. Zero kandydatów jest poprawnym wynikiem. Zero researchu albo pominięcie registry przy aktywnych źródłach nie jest poprawnym wynikiem.
 
 Każdy profil raportuje co najmniej:
 - liczbę aktywnych źródeł rejestrowych,
