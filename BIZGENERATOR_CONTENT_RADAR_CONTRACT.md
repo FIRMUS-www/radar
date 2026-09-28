@@ -104,7 +104,7 @@ Brak odpowiedzi nie zawsze odrzuca kandydata, ale musi obniżyć gotowość do p
 
 ## Zasady bezpieczeństwa i jakości
 
-- Zachowujemy reconcile przed researchem, deduplikację, dowody, rejestr źródeł i fail-closed.
+- Zachowujemy reconcile przed researchem, deduplikację, dowody i rejestr źródeł. Fail-closed dotyczy niespójnego zapisu Supabase; brak GitHub Issue nie może blokować poprawnego kandydata.
 - Nie tworzymy duplikatu, gdy istniejący kandydat można uzupełnić.
 - Nie automatyzujemy outboundu ani scrapingu niezgodnego z zasadami platform.
 - `source_url`, `discovery_source`, `discovery_query` i `discovered_at` powinny umożliwiać odtworzenie pochodzenia materiału.
