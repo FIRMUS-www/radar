@@ -206,3 +206,26 @@ Kolejność pełnego przebiegu jest jawna:
 `BG research → telemetria BG → KSI research → telemetria KSI → wspólna deduplikacja/zapis`.
 
 Telemetria służy do odpowiedzi na pytanie „co Radar rzeczywiście zrobił”, a nie do wymuszania liczby kandydatów.
+
+
+## 9. Trwałość kandydata i kolejność zapisu
+
+Od 2026-09-28 `public.content_radar_items` jest nie tylko runtime source of truth dashboardu, ale także **pierwszym i nieblokowalnym miejscem zapisu zaakceptowanego kandydata**.
+
+Kolejność zapisu:
+1. screening + deduplikacja;
+2. UPSERT kandydata do `public.content_radar_items` wraz z pełnym profilowaniem;
+3. weryfikacja, że kandydat jest widoczny dokładnie raz w Supabase / produkcyjnym `/api/items`;
+4. dopiero potem best-effort mirror do GitHub Issue `[CONTENT][KANDYDAT]`.
+
+GitHub Issue jest śladem audytowym i wygodnym rekordem roboczym, ale **nie jest bramką zapisu do Content Radaru**.
+
+Jeżeli utworzenie lub aktualizacja Issue zostanie zablokowana przez konektor, safety check, limit API albo chwilową awarię:
+- kandydat pozostaje w Supabase i jest widoczny w CR;
+- przebieg nie może odrzucić ani cofnąć poprawnego kandydata tylko z tego powodu;
+- problem z mirror-em należy zapisać jako ostrzeżenie telemetryczne / notatkę, nie jako utratę kandydata;
+- kolejny przebieg może próbować uzupełnić brakujące Issue, ale nie może duplikować CR.
+
+Fail-closed dotyczy błędnego lub niespójnego **zapisu Supabase** (np. brak profilu, duplikat CR, niezgodne dane), a nie niedostępności pomocniczego mirrora GitHub.
+
+Automatyzacja `Firmus Content Radar v2` ma pozostać włączona. Błąd pojedynczego przebiegu, profilu, źródła lub mirrora GitHub nie może samodzielnie zmienić `is_enabled` na false.
