@@ -1,7 +1,7 @@
 # CONTENT RADAR — PROFILE ARCHITECTURE SOT
 
 **Status:** kanoniczny  
-**Data:** 2026-09-25
+**Data:** 2026-09-28
 
 ## 1. Zasada nadrzędna
 
@@ -210,22 +210,36 @@ Telemetria służy do odpowiedzi na pytanie „co Radar rzeczywiście zrobił”
 
 ## 9. Trwałość kandydata i kolejność zapisu
 
-Od 2026-09-28 `public.content_radar_items` jest nie tylko runtime source of truth dashboardu, ale także **pierwszym i nieblokowalnym miejscem zapisu zaakceptowanego kandydata**.
+Od 2026-09-28 **Supabase jest jedynym runtime source of truth kandydatów Content Radaru**.
+
+GitHub Issues nie uczestniczą w tworzeniu, identyfikowaniu, zapisie, synchronizacji ani handoffie kandydatów CR.
 
 Kolejność zapisu:
 1. screening + deduplikacja;
-2. UPSERT kandydata do `public.content_radar_items` wraz z pełnym profilowaniem;
-3. weryfikacja, że kandydat jest widoczny dokładnie raz w Supabase / produkcyjnym `/api/items`;
-4. dopiero potem best-effort mirror do GitHub Issue `[CONTENT][KANDYDAT]`.
+2. wygenerowanie unikalnego identyfikatora `CR-YYMMDD-NN` na podstawie istniejących rekordów Supabase dla bieżącej daty;
+3. INSERT / UPSERT kandydata do `public.content_radar_items` wraz z pełnym profilowaniem;
+4. weryfikacja, że kandydat istnieje dokładnie raz i jest widoczny w produkcyjnym `/api/items`;
+5. dalszy handoff do Content Machine odbywa się po `cr`, bez GitHub Issue.
 
-GitHub Issue jest śladem audytowym i wygodnym rekordem roboczym, ale **nie jest bramką zapisu do Content Radaru**.
+Pole `content_radar_items.number` jest wyłącznie polem legacy dla historycznych rekordów. Nowe kandydaty nie muszą go mieć i nie wolno interpretować go jako numeru GitHub Issue.
 
-Jeżeli utworzenie lub aktualizacja Issue zostanie zablokowana przez konektor, safety check, limit API albo chwilową awarię:
-- kandydat pozostaje w Supabase i jest widoczny w CR;
-- przebieg nie może odrzucić ani cofnąć poprawnego kandydata tylko z tego powodu;
-- problem z mirror-em należy zapisać jako ostrzeżenie telemetryczne / notatkę, nie jako utratę kandydata;
-- kolejny przebieg może próbować uzupełnić brakujące Issue, ale nie może duplikować CR.
+Nie wykonujemy:
+- tworzenia GitHub Issue dla nowego kandydata,
+- mirrorowania Supabase → GitHub,
+- reconcile GitHub Issues ↔ Supabase,
+- odzyskiwania kandydatów z Issues jako normalnej części przebiegu,
+- blokowania kandydata z powodu niedostępności GitHuba.
 
-Fail-closed dotyczy błędnego lub niespójnego **zapisu Supabase** (np. brak profilu, duplikat CR, niezgodne dane), a nie niedostępności pomocniczego mirrora GitHub.
+Fail-closed dotyczy wyłącznie niespójnego zapisu Supabase, duplikatu `cr`, brakującego profilowania lub niezaliczonego screeningu.
 
-Automatyzacja `Firmus Content Radar v2` ma pozostać włączona. Błąd pojedynczego przebiegu, profilu, źródła lub mirrora GitHub nie może samodzielnie zmienić `is_enabled` na false.
+Automatyzacja `Firmus Content Radar v2` ma pozostać włączona. Błąd pojedynczego profilu, źródła albo pomocniczej telemetrii nie może samodzielnie ustawić `is_enabled=false`.
+
+## 10. Granica z GitHubem
+
+GitHub pozostaje miejscem dla:
+- kodu aplikacji,
+- SOT-ów i kontraktów,
+- konfiguracji wersjonowanej.
+
+GitHub nie jest bazą runtime tematów Content Radaru.
+Historyczne Issues `[CONTENT]` mogą pozostać jako archiwalny ślad, ale nie są odczytywane ani aktualizowane w normalnym przebiegu CR.
