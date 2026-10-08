@@ -7,8 +7,8 @@ const json = (data: unknown, status = 200) => new Response(JSON.stringify(data),
 type Row = Record<string, any>;
 const decode = (s: string) => s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
   .replace(/&#(x[0-9a-f]+|\d+);/gi, (_, n) => { try { return String.fromCodePoint(n[0].toLowerCase() === "x" ? parseInt(n.slice(1),16) : parseInt(n,10)); } catch { return ""; } })
-  .replace(/&(amp|lt|gt|quot|apos|nbsp|ndash|mdash|hellip|rsquo|ldquo|rdquo);/gi, (_, v) =>
-    ({amp:"&",lt:"<",gt:">",quot:'"',apos:"'",nbsp:" ",ndash:"–",mdash:"—",hellip:"…",rsquo:"’",ldquo:"“",rdquo:"”"} as Row)[v.toLowerCase()] ?? " ");
+  .replace(/&(amp|lt|gt|quot|apos|nbsp|ndash|mdash|hellip|rsquo|ldquo|rdquo|bdquo|lsquo|laquo|raquo|oacute|aogon|eogon|lstrok|nacute|sacute|zacute|zdot);/gi, (_, v) =>
+    ({amp:"&",lt:"<",gt:">",quot:'"',apos:"'",nbsp:" ",ndash:"–",mdash:"—",hellip:"…",rsquo:"’",ldquo:"“",rdquo:"”",bdquo:"„",lsquo:"‘",laquo:"«",raquo:"»",oacute:"ó",aogon:"ą",eogon:"ę",lstrok:"ł",nacute:"ń",sacute:"ś",zacute:"ź",zdot:"ż"} as Row)[v.toLowerCase()] ?? " ");
 function stripHtml(s: string) {
   return decode(s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g,"$1").replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
     .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")
