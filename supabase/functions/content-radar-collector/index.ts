@@ -136,6 +136,15 @@ Deno.serve(async (req:Request) => {
           try{
             const html=await page(x.url);const a=articleBody(html,x.title,new URL(x.url).hostname);
             if(a.body.length<300)throw new Error("article body shorter than 300 characters");
+            const tokenize=(z:string)=>z.toLowerCase().replace(/[^a-z0-9ąćęłńóśźż]+/g," ").split(/\\s+/).filter(w=>w.length>3);
+            const expected=tokenize(x.title),actual=tokenize(a.title);
+            if(expected.length>0 && actual.length>0) {
+              const overlap=expected.filter(w=>actual.includes(w)).length;
+              if(overlap<Math.max(1,Math.ceil(expected.length*0.4)))
+                throw new Error("Article headline mismatch (fallback/navigation detected)");
+            }
+            if(!actual.length && !a.body.slice(0,1500).toLowerCase().includes(x.title.slice(0,25).toLowerCase()))
+              throw new Error("Missing article headline on target page");
             read++;stats.items_read++;
             const published=x.published_at||a.published_at||
               parseDate(a.body.match(/Data publikacji:\s*(20\d{2}-\d{2}-\d{2})/i)?.[1]);
