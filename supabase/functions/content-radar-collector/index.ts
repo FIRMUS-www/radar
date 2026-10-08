@@ -192,7 +192,8 @@ Deno.serve(async (req:Request) => {
             const expected=tokenize(x.title),actual=tokenize(a.title);
             if(expected.length>0 && actual.length>0) {
               const overlap=expected.filter(w=>actual.includes(w)).length;
-              if(overlap<Math.max(1,Math.ceil(expected.length*0.4)))
+              const bodyHeadlinePresent=a.body.slice(0,1800).toLowerCase().replace(/\\s+/g," ").includes(x.title.toLowerCase().replace(/\\s+/g," ").slice(0,42));
+              if(overlap<Math.max(1,Math.ceil(expected.length*0.4))&&!bodyHeadlinePresent)
                 throw new Error("Article headline mismatch (fallback/navigation detected)");
             }
             if(!actual.length && !a.body.slice(0,1500).toLowerCase().includes(x.title.slice(0,25).toLowerCase()))
