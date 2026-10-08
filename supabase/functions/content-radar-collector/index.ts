@@ -53,7 +53,7 @@ function htmlEntries(html: string, base: string, path: string): Article[] {
   return [...found.values()];
 }
 async function db(path: string, method = "GET", body?: unknown): Promise<any> {
-  const r = await fetch(API + path,{method,headers:{apikey:SERVICE_KEY,authorization:"Bearer "+SERVICE_KEY,"Content-Type":"application/json",Prefer:"return=representation"},body:body===undefined?undefined:JSON.stringify(body)});
+  const r = await fetch(API + path,{method,headers:{apikey:SERVICE_KEY,authorization:"Bearer "+SERVICE_KEY,"Content-Type":"application/json",Prefer:"return=representation,resolution=merge-duplicates"},body:body===undefined?undefined:JSON.stringify(body)});
   const s=await r.text();if(!r.ok)throw new Error("database "+method+" "+r.status+" "+s.slice(0,350));
   return s ? JSON.parse(s) : null;
 }
@@ -64,11 +64,23 @@ async function page(url: string) {
   const text=await r.text();if(text.length>2_000_000)throw new Error("source response too large");
   return text;
 }
-function articleBody(html: string) {
+function articleBody(html: string, titleHint = "", host = "") {
   const b = html.match(/<article\b[^>]*>([\s\S]*?)<\/article>/i)?.[1]
     || html.match(/<main\b[^>]*>([\s\S]*?)<\/main>/i)?.[1]
     || html.match(/<body\b[^>]*>([\s\S]*?)<\/body>/i)?.[1] || html;
-  const body=stripHtml(b).slice(0,20000);
+  let body=stripHtml(b).slice(0,20000);
+  // Liferay/ZUS includes massive navigation before the article. Use the LAST occurrence
+  // of the verified feed headline and never mark menu text as an article body.
+  if (host==="www.zus.pl" || host==="zus.pl") {
+    const full=stripHtml(html);
+    const needle=titleHint.replace(/\s+/g," ").trim();
+    let at=full.lastIndexOf(needle);
+    if(at<0 && needle.length>45)at=full.lastIndexOf(needle.slice(0,45));
+    if(at<0)throw new Error("ZUS headline not found in source page body");
+    body=full.slice(at,at+15000);
+    if(body.length<300 || body.startsWith("Przejdź do treści"))
+      throw new Error("ZUS article body extraction rejected");
+  }
   const title=stripHtml(html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i)?.[1]||"").replace(/\s+/g," ").slice(0,240);
   const published = html.match(/(?:article:published_time|datePublished)["'][^>]*content\s*=\s*["']([^"']+)/i)?.[1]
     || html.match(/(?:Data publikacji|Opublikowano)[:\s]*(20\d{2}-\d\d-\d\d)/i)?.[1];
@@ -88,6 +100,8 @@ Deno.serve(async (req:Request) => {
   const runId=run[0].run_id;
   const stats={run_id:runId,status:"COMPLETED",sources_attempted:0,sources_readable:0,items_seen:0,items_read:0,new_discoveries:0,errors:[] as string[]};
   try{
+    const payload=await req.json().catch(()=>({}));
+    const repairExisting = payload?.repair===true;
     const [configs,sources,assignments] = await Promise.all([
       db("content_radar_collector_sources?enabled=eq.true&select=*"),
       db("content_radar_sources?select=id,name,source_type,url"),
@@ -108,12 +122,13 @@ Deno.serve(async (req:Request) => {
         const known=await db("content_radar_discoveries?select=canonical_url&source_id=eq."+encodeURIComponent(conf.source_id)+"&limit=5000");
         const knownUrls=new Set(known.map((r:Row)=>r.canonical_url));
         for(const x of unique){
-          if(knownUrls.has(x.url)) continue;
+          const existing=knownUrls.has(x.url); if(existing && !repairExisting) continue;
           try{
-            const html=await page(x.url);const a=articleBody(html);
+            const html=await page(x.url);const a=articleBody(html,x.title,new URL(x.url).hostname);
             if(a.body.length<300)throw new Error("article body shorter than 300 characters");
             read++;stats.items_read++;
-            const published=x.published_at||a.published_at;
+            const published=x.published_at||a.published_at||
+              parseDate(a.body.match(/Data publikacji:\s*(20\d{2}-\d{2}-\d{2})/i)?.[1]);
             if(published && (!latest||published>latest))latest=published;
             const age=published?(Date.now()-new Date(published).valueOf())/86400000:0;
             const baseline=age>21;
@@ -124,7 +139,7 @@ Deno.serve(async (req:Request) => {
               status:baseline?"REVIEWED":"NEW",metadata:{adapter:conf.adapter,baseline,verified_full_text:true}
             };
             await db("content_radar_discoveries?on_conflict=source_id,canonical_url","POST",record);
-            stats.new_discoveries++;knownUrls.add(x.url);
+            if(!existing)stats.new_discoveries++;knownUrls.add(x.url);
           }catch(e){ stats.errors.push(src.name+" / "+x.url+": "+String(e).slice(0,170)); }
         }
         if(read>0)status="READABLE";
