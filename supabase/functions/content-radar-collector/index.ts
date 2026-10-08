@@ -102,7 +102,7 @@ function articleBody(html: string, titleHint = "", host = "") {
     const related=body.indexOf("Najnowsze filmy z tej tematyki");
     if(related>=0 && related<800)throw new Error("Video listing is not a full article");
   }
-  if(host==="www.gov.pl" || host==="gov.pl" || host==="uokik.gov.pl" || host==="www.uokik.gov.pl") {
+  if(host==="www.gov.pl" || host==="gov.pl") {
     const content=stripHtml(article.length>350?article:main.length>350?main:page);
     const needle=titleHint.replace(/\s+/g," ").trim();
     let at=content.lastIndexOf(needle);
@@ -110,6 +110,14 @@ function articleBody(html: string, titleHint = "", host = "") {
     if(at<0)throw new Error("Actual headline absent from body; no verified article");
     body=content.slice(at,at+18000);
     if(body.length<300)throw new Error("Actual content shorter than 300 characters");
+  }
+  if(host==="uokik.gov.pl" || host==="www.uokik.gov.pl") {
+    const pos=html.search(/<div\b[^>]*class=["'][^"']*post__content[^"']*["']/i);
+    if(pos<0)throw new Error("Missing UOKiK post body container");
+    body=stripHtml(html.slice(pos,pos+75000)).slice(0,18000);
+    const intro=stripHtml(html.match(/<meta\b[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i)?.[1]||"");
+    if(body.length<450 || (intro.length>25 && !body.includes(intro.slice(0,25))))
+      throw new Error("UOKiK post body is missing verified introductory text");
   }
   const ogTitle=html.match(/<meta\b[^>]*property=["']og:title["'][^>]*content\s*=\s*["']([^"']+)["']/i)?.[1];
   const documentTitle=html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1];
