@@ -23,7 +23,7 @@ function absolute(url: string, base: string): string | null {
     u.hash = ""; u.searchParams.delete("utm_source");u.searchParams.delete("utm_medium");u.searchParams.delete("utm_campaign");
     return u.toString(); } catch { return null; }
 }
-function sameOrigin(u: string, base: string) { try { return new URL(u).hostname === new URL(base).hostname; } catch { return false; } }
+function sameOrigin(u: string, base: string) { try { return new URL(u).hostname.replace(/^www\./,"") === new URL(base).hostname.replace(/^www\./,""); } catch { return false; } }
 function parseDate(value: string | null | undefined) { if (!value) return null; const d = new Date(value); return Number.isFinite(d.valueOf()) ? d.toISOString() : null; }
 type Article = {url:string,title:string,published_at:string|null,excerpt:string};
 function rssEntries(feed: string, base: string): Article[] {
@@ -77,7 +77,7 @@ function articleBody(html: string, titleHint = "", host = "") {
     let at=full.lastIndexOf(needle);
     if(at<0 && needle.length>45)at=full.lastIndexOf(needle.slice(0,45));
     if(at<0)throw new Error("ZUS headline not found in source page body");
-    body=full.slice(at,at+15000);
+    body=full.slice(at,at+15000).split(/Powrót do listy|Ukryty\s+Zamówienia publiczne|Polityka cookies/)[0].trim();
     if(body.length<300 || body.startsWith("Przejdź do treści"))
       throw new Error("ZUS article body extraction rejected");
   }
@@ -102,12 +102,15 @@ Deno.serve(async (req:Request) => {
   try{
     const payload=await req.json().catch(()=>({}));
     const repairExisting = payload?.repair===true;
+    const probeIds: string[]=Array.isArray(payload?.probe_source_ids)?payload.probe_source_ids.filter((id:unknown)=>typeof id==="string" && /^[0-9a-f-]{36}$/.test(id)).slice(0,12):[];
+    const probing=probeIds.length>0;
     const [configs,sources,assignments] = await Promise.all([
-      db("content_radar_collector_sources?enabled=eq.true&select=*"),
+      db("content_radar_collector_sources?select=*"+(probing?"&source_id=in.("+probeIds.join(",")+")":"&enabled=eq.true")),
       db("content_radar_sources?select=id,name,source_type,url"),
       db("content_radar_profile_sources?active=eq.true&select=source_id,profile_key,priority") ]);
     const sourceMap=new Map(sources.map((s:Row)=>[s.id,s]));
-    for(const conf of configs.slice(0,12)){
+    const ordered=configs.sort((a:Row,b:Row)=>String(a.last_attempted_at||"").localeCompare(String(b.last_attempted_at||"")));
+    for(const conf of ordered.slice(0,12)){
       const src:Row=sourceMap.get(conf.source_id)??{};const profiles=assignments.filter((a:Row)=>a.source_id===conf.source_id);
       let status="ERROR",seen=0,read=0,latest:string|null=null,explanation="";
       stats.sources_attempted++;
@@ -161,6 +164,8 @@ Deno.serve(async (req:Request) => {
           });
         }catch(e){stats.errors.push("scan-log: "+String(e).slice(0,150));}
       }
+      try{await db("content_radar_collector_sources?source_id=eq."+conf.source_id,"PATCH",{last_attempted_at:new Date().toISOString()});}
+      catch(e){stats.errors.push("source rotation state: "+String(e).slice(0,140));}
       if(Date.now()-started>90000){stats.errors.push("Execution budget reached; remaining sources deferred");break;}
     }
   }catch(e){stats.errors.push("collector fatal: "+String(e));}
