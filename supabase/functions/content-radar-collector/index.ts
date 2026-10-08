@@ -89,7 +89,8 @@ function articleBody(html: string, titleHint = "", host = "") {
   }
   const title=stripHtml(html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i)?.[1]||"").replace(/\s+/g," ").slice(0,240);
   const published = html.match(/(?:article:published_time|datePublished)["'][^>]*content\s*=\s*["']([^"']+)/i)?.[1]
-    || html.match(/(?:Data publikacji|Opublikowano)[:\s]*(20\d{2}-\d\d-\d\d)/i)?.[1];
+    || html.match(/(?:Data publikacji|Opublikowano)[:\\s]*(20\\d{2}-\\d\\d-\\d\\d)/i)?.[1]
+    || html.match(/(?:datePublished|published|datetime)[^>]{0,160}["'](20\\d{2}-\\d{2}-\\d{2})/i)?.[1];
   return {body,title,published_at:parseDate(published)};
 }
 Deno.serve(async (req:Request) => {
@@ -136,7 +137,7 @@ Deno.serve(async (req:Request) => {
           try{
             const html=await page(x.url);const a=articleBody(html,x.title,new URL(x.url).hostname);
             if(a.body.length<300)throw new Error("article body shorter than 300 characters");
-            const tokenize=(z:string)=>z.toLowerCase().replace(/[^a-z0-9ąćęłńóśźż]+/g," ").split(/\\s+/).filter(w=>w.length>3);
+            const tokenize=(z:string)=>z.toLowerCase().replace(/[^a-z0-9ąćęłńóśźż]+/g," ").split(/\s+/).filter(w=>w.length>3);
             const expected=tokenize(x.title),actual=tokenize(a.title);
             if(expected.length>0 && actual.length>0) {
               const overlap=expected.filter(w=>actual.includes(w)).length;
