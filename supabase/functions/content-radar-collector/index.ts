@@ -69,7 +69,8 @@ function htmlEntries(html: string, base: string, path: string): Article[] {
     const p = new URL(url).pathname;
     if (!p.startsWith(path) || p === path.replace(/\/$/,"") || p.length < path.length+12 || /\.(xml|rss|jpg|png|svg|webp|pdf)$/i.test(p)) continue;
     let title = stripHtml(m[4]).replace(/\s+/g," ").trim();
-    if (title.length < 12) title = decodeURIComponent(p.split("/").filter(Boolean).pop()??"").replace(/[-_]/g," ");
+    if (title.length < 12 || /^(czytaj|więcej|zobacz|sprawdź|dowiedz|przejdź|poznaj)/i.test(title))
+      title = decodeURIComponent(p.split("/").filter(Boolean).pop()??"").replace(/[-_]/g," ");
     if (title.length < 12 || title.length>250) continue;
     found.set(url,{url,title,published_at:null,excerpt:""});
   }
