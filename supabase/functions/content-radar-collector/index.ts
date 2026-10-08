@@ -102,7 +102,20 @@ function articleBody(html: string, titleHint = "", host = "") {
     const related=body.indexOf("Najnowsze filmy z tej tematyki");
     if(related>=0 && related<800)throw new Error("Video listing is not a full article");
   }
-  const title=stripHtml(html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i)?.[1]||"").replace(/\s+/g," ").slice(0,240);
+  if(host==="www.gov.pl" || host==="gov.pl" || host==="uokik.gov.pl" || host==="www.uokik.gov.pl") {
+    const content=stripHtml(article.length>350?article:main.length>350?main:page);
+    const needle=titleHint.replace(/\s+/g," ").trim();
+    let at=content.lastIndexOf(needle);
+    if(at<0 && needle.length>35)at=content.lastIndexOf(needle.slice(0,35));
+    if(at<0)throw new Error("Actual headline absent from body; no verified article");
+    body=content.slice(at,at+18000);
+    if(body.length<300)throw new Error("Actual content shorter than 300 characters");
+  }
+  const ogTitle=html.match(/<meta\b[^>]*property=["']og:title["'][^>]*content\s*=\s*["']([^"']+)["']/i)?.[1];
+  const documentTitle=html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1];
+  const headline=html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i)?.[1];
+  const title=stripHtml((host==="www.gov.pl"||host==="gov.pl"||host==="uokik.gov.pl"||host==="www.uokik.gov.pl")
+    ?(ogTitle||documentTitle||headline||""):(headline||ogTitle||documentTitle||"")).replace(/\s+/g," ").slice(0,240);
   const published = html.match(/(?:article:published_time|datePublished)["'][^>]*content\s*=\s*["']([^"']+)/i)?.[1]
     || html.match(/(?:Data publikacji|Opublikowano)[:\\s]*(20\\d{2}-\\d\\d-\\d\\d)/i)?.[1]
     || html.match(/(?:datePublished|published|datetime)[^>]{0,160}["'](20\\d{2}-\\d{2}-\\d{2})/i)?.[1];
