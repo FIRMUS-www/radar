@@ -25,6 +25,14 @@ function absolute(url: string, base: string): string | null {
 }
 function sameOrigin(u: string, base: string) { try { return new URL(u).hostname.replace(/^www\./,"") === new URL(base).hostname.replace(/^www\./,""); } catch { return false; } }
 function parseDate(value: string | null | undefined) { if (!value) return null; const d = new Date(value); return Number.isFinite(d.valueOf()) ? d.toISOString() : null; }
+function polishPublication(body: string): string | null {
+  const m=body.match(/(?:Dodano|Opublikowano|Data publikacji):\s*(\d{1,2})\s+(stycznia|lutego|marca|kwietnia|maja|czerwca|lipca|sierpnia|września|października|listopada|grudnia)\s+(20\d{2})/i);
+  if(!m)return null;
+  const months=["stycznia","lutego","marca","kwietnia","maja","czerwca","lipca","sierpnia","września","października","listopada","grudnia"];
+  const month=months.indexOf(m[2].toLowerCase());
+  return month<0?null:new Date(Date.UTC(Number(m[3]),month,Number(m[1]))).toISOString();
+}
+
 type Article = {url:string,title:string,published_at:string|null,excerpt:string};
 function rssEntries(feed: string, base: string): Article[] {
   const blocks = [...feed.matchAll(/<item(?:\s[^>]*)?>([\s\S]*?)<\/item>/gi)];
@@ -190,7 +198,7 @@ Deno.serve(async (req:Request) => {
               throw new Error("Missing article headline on target page");
             read++;stats.items_read++;
             const published=x.published_at||a.published_at||
-              parseDate(a.body.match(/Data publikacji:\s*(20\d{2}-\d{2}-\d{2})/i)?.[1]);
+              parseDate(a.body.match(/Data publikacji:\s*(20\d{2}-\d{2}-\d{2})/i)?.[1])||polishPublication(a.body);
             if(published && (!latest||published>latest))latest=published;
             const age=published?(Date.now()-new Date(published).valueOf())/86400000:0;
             const baseline=!published || age>21;
