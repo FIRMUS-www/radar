@@ -109,6 +109,12 @@ function articleBody(html: string, titleHint = "", host = "") {
     if(at<0 && needle.length>35)at=content.lastIndexOf(needle.slice(0,35));
     if(at<0)throw new Error("Actual headline absent from body; no verified article");
     body=content.slice(at,at+18000);
+    // Some gov.pl articles repeat their title in a related-links footer.
+    // If the final occurrence is a short related link, use the earlier article heading.
+    if(body.length<300) {
+      const earlier=content.indexOf(needle);
+      if(earlier>=0 && earlier<at) body=content.slice(earlier,earlier+18000);
+    }
     if(body.length<300)throw new Error("Actual content shorter than 300 characters");
   }
   if(host==="uokik.gov.pl" || host==="www.uokik.gov.pl") {
