@@ -121,6 +121,7 @@ Deno.serve(async (req:Request) => {
         status="NO_NEW_CONTENT";stats.sources_readable++;
         const known=await db("content_radar_discoveries?select=canonical_url&source_id=eq."+encodeURIComponent(conf.source_id)+"&limit=5000");
         const knownUrls=new Set(known.map((r:Row)=>r.canonical_url));
+        const knownInitially = new Set(knownUrls);
         for(const x of unique){
           const existing=knownUrls.has(x.url); if(existing && !repairExisting) continue;
           try{
@@ -143,7 +144,11 @@ Deno.serve(async (req:Request) => {
           }catch(e){ stats.errors.push(src.name+" / "+x.url+": "+String(e).slice(0,170)); }
         }
         if(read>0)status="READABLE";
-        else if(!seen)status="ERROR";
+        else if (unique.every((x)=>knownInitially.has(x.url))) status="NO_NEW_CONTENT";
+        else {
+          status="ERROR"; stats.sources_readable--;
+          stats.errors.push((src.name||conf.source_id)+": listing found new links but no valid article body could be read");
+        }
         explanation="Listing parsed: "+seen+"; new full articles read: "+read+".";
       }catch(e){explanation=String(e);stats.errors.push((src.name||conf.source_id)+": "+explanation);status="ERROR";}
       for(const p of profiles){
