@@ -65,10 +65,12 @@ async function page(url: string) {
   return text;
 }
 function articleBody(html: string, titleHint = "", host = "") {
-  const b = html.match(/<article\b[^>]*>([\s\S]*?)<\/article>/i)?.[1]
-    || html.match(/<main\b[^>]*>([\s\S]*?)<\/main>/i)?.[1]
-    || html.match(/<body\b[^>]*>([\s\S]*?)<\/body>/i)?.[1] || html;
-  let body=stripHtml(b).slice(0,20000);
+  const article = html.match(/<article\b[^>]*>([\s\S]*?)<\/article>/i)?.[1] || "";
+  const main = html.match(/<main\b[^>]*>([\s\S]*?)<\/main>/i)?.[1] || "";
+  const page = html.match(/<body\b[^>]*>([\s\S]*?)<\/body>/i)?.[1] || html;
+  const articleText = stripHtml(article);
+  const mainText = stripHtml(main);
+  let body = (articleText.length>=450 ? articleText : mainText.length>=450 ? mainText : stripHtml(page)).slice(0,20000);
   // Liferay/ZUS includes massive navigation before the article. Use the LAST occurrence
   // of the verified feed headline and never mark menu text as an article body.
   if (host==="www.zus.pl" || host==="zus.pl") {
@@ -80,6 +82,10 @@ function articleBody(html: string, titleHint = "", host = "") {
     body=full.slice(at,at+15000).split(/Powrót do listy|Ukryty\s+Zamówienia publiczne|Polityka cookies/)[0].trim();
     if(body.length<300 || body.startsWith("Przejdź do treści"))
       throw new Error("ZUS article body extraction rejected");
+  }
+  if(host==="izbapodatkowa.pl" || host==="www.izbapodatkowa.pl") {
+    const related=body.indexOf("Najnowsze filmy z tej tematyki");
+    if(related>=0 && related<800)throw new Error("Video listing is not a full article");
   }
   const title=stripHtml(html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i)?.[1]||"").replace(/\s+/g," ").slice(0,240);
   const published = html.match(/(?:article:published_time|datePublished)["'][^>]*content\s*=\s*["']([^"']+)/i)?.[1]
@@ -135,7 +141,7 @@ Deno.serve(async (req:Request) => {
               parseDate(a.body.match(/Data publikacji:\s*(20\d{2}-\d{2}-\d{2})/i)?.[1]);
             if(published && (!latest||published>latest))latest=published;
             const age=published?(Date.now()-new Date(published).valueOf())/86400000:0;
-            const baseline=age>21;
+            const baseline=!published || age>21;
             const record={
               source_id:conf.source_id,canonical_url:x.url,title:(a.title||x.title).slice(0,250),
               excerpt:(x.excerpt||a.body.slice(0,700)).slice(0,1300),published_at:published,
