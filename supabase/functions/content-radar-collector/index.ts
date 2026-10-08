@@ -10,7 +10,7 @@ const decode = (s: string) => s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
   .replace(/&(amp|lt|gt|quot|apos|nbsp|ndash|mdash|hellip|rsquo|ldquo|rdquo);/gi, (_, v) =>
     ({amp:"&",lt:"<",gt:">",quot:'"',apos:"'",nbsp:" ",ndash:"–",mdash:"—",hellip:"…",rsquo:"’",ldquo:"“",rdquo:"”"} as Row)[v.toLowerCase()] ?? " ");
 function stripHtml(s: string) {
-  return decode(s.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
+  return decode(s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g,"$1").replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
     .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")
     .replace(/<(nav|footer|header|aside)\b[^>]*>[\s\S]*?<\/\1>/gi, " ")
     .replace(/<\/(p|h[1-6]|li|div|section|article|br|tr)>/gi, "\n")
@@ -37,6 +37,21 @@ function rssEntries(feed: string, base: string): Article[] {
     return { url:u||"", title:xml(b,"title"),published_at:parseDate(xml(b,"pubDate")||xml(b,"published")||xml(b,"updated")||xml(b,"date")),
       excerpt:(xml(b,"description")||xml(b,"summary")||xml(b,"encoded")).slice(0,1300) };
   }).filter(x => x.url && x.title && sameOrigin(x.url,base));
+}
+function governmentEntries(html: string, base: string, path: string): Article[] {
+  const entries: Article[]=[];
+  const re=/<div\s+class=["']title["'][^>]*>\s*<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  for(const m of html.matchAll(re)) {
+    const url=absolute(m[1],base);
+    const title=stripHtml(m[2]).replace(/\s+/g," ").trim();
+    if(!url || !sameOrigin(url,base) || !new URL(url).pathname.startsWith(path) || title.length<15)continue;
+    const preceding=html.slice(Math.max(0,(m.index||0)-420),m.index||0);
+    const dates=[...preceding.matchAll(/<span\s+class=["']date["'][^>]*>\s*(\d{2})\.(\d{2})\.(20\d{2})\s*<\/span>/gi)];
+    const d=dates.length?dates[dates.length-1]:null;
+    const published_at=d?new Date(Date.UTC(+d[3],+d[2]-1,+d[1])).toISOString():null;
+    entries.push({url,title,published_at,excerpt:""});
+  }
+  return [...new Map(entries.map(x=>[x.url,x])).values()];
 }
 function htmlEntries(html: string, base: string, path: string): Article[] {
   const found = new Map<string,Article>();
@@ -124,7 +139,7 @@ Deno.serve(async (req:Request) => {
       try{
         if(conf.adapter==="apify")throw new Error("Apify adapter reserved; integration disabled until explicitly configured");
         const raw=await page(conf.endpoint);
-        const all:Article[]=conf.adapter==="rss"?rssEntries(raw,conf.endpoint):htmlEntries(raw,conf.endpoint,conf.options?.allowed_path||"/");
+        const all:Article[]=conf.adapter==="rss"?rssEntries(raw,conf.endpoint):(conf.options?.mode==="govpl"?governmentEntries(raw,conf.endpoint,conf.options?.allowed_path||"/"):htmlEntries(raw,conf.endpoint,conf.options?.allowed_path||"/"));
         const unique=[...new Map(all.map(x=>[x.url,x])).values()].slice(0,Math.min(Math.max(Number(conf.options?.limit)||8,1),15));
         seen=unique.length;stats.items_seen+=seen;
         if(!seen)throw new Error("no article links parsed; source not counted as checked");
