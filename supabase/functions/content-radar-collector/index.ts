@@ -185,7 +185,9 @@ Deno.serve(async (req:Request) => {
         const knownUrls=new Set(knownByUrl.keys());
         const knownInitially = new Set(knownUrls);
         for(const x of unique){
-          const existing=knownUrls.has(x.url); if(existing && !repairExisting) continue;
+          const existing=knownUrls.has(x.url);
+          const previousRecord:Row=knownByUrl.get(x.url)??{};
+          if(existing && (!repairExisting || (previousRecord.status==="IGNORED" && previousRecord.metadata?.verified_full_text===false))) continue;
           try{
             const html=await page(x.url);const a=articleBody(html,x.title,new URL(x.url).hostname);
             if(a.body.length<300)throw new Error("article body shorter than 300 characters");
