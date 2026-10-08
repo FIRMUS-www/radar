@@ -243,3 +243,21 @@ GitHub pozostaje miejscem dla:
 
 GitHub nie jest bazą runtime tematów Content Radaru.
 Historyczne Issues `[CONTENT]` mogą pozostać jako archiwalny ślad, ale nie są odczytywane ani aktualizowane w normalnym przebiegu CR.
+
+
+## 11. Rzeczywiste pozyskiwanie źródeł (2026-10-08; nadrzędne wobec starszej telemetryki)
+
+Źródłem publikacji jest **deterministyczny kolektor** Supabase Edge Function
+`content-radar-collector` (`supabase/functions/content-radar-collector/index.ts`),
+uruchamiany z Supabase Cron `content-radar-real-collector` co 30 minut.
+
+- `public.content_radar_collector_sources` – techniczny adapter, endpoint i enabled; nie zmienia przypisania i aktywności źródła w profilach. Obecna konfiguracja obejmuje RSS ZUS, HTML Fakturownia, RSS MamStartup. Pozostałe wpisy Registry bez zweryfikowanego endpointu są **nieobjęte automatycznym kolektorem**; NIE wolno raportować ich jako przeskanowanych.
+- `public.content_radar_discoveries` – artykuły ze zweryfikowanym odczytem treści, linkiem, datą publikacji, profile_keys i statusem selekcji (NEW / REVIEWED / IGNORED). Identyfikacja: UNIQUE(source_id, canonical_url). Wspólne źródło jest pobierane raz, profile oceniają oddzielnie.
+- `public.content_radar_collection_runs` – faktyczny stan kolektora i jego wyniki; `public.content_radar_source_scans` – próby odczytu dla konkretnych przypisanych profili (run_id `collector-UUID`).
+- `READABLE` oznacza faktycznie odczytane artykuły podczas przebiegu; `NO_NEW_CONTENT` oznacza poprawne przeczytanie listy publikacji z samymi już zapisanymi linkami; `PARTIAL` i `BLOCKED` NIE dowodzą odczytu publikacji i nigdy nie oznaczają pokrycia źródła.
+- Po utworzeniu kolektora **automatyzacja redakcyjna** `Firmus Content Radar v2` ma najpierw czytać `content_radar_discoveries.status='NEW'` i pełen `body_text`, sprawdzać fakty, relewancję, duplikaty CR i zapisywać tylko sensowne CR do `content_radar_items`. Nie wolno automatycznie publikować surowych artykułów jako kandydatów.
+- Starsza instrukcja „100% codziennego pokrycia źródeł” pozostaje celem **docelowym**, ale nie liczbą do symulowania: rzeczywistym pokryciem jest tylko odczyt źródła posiadającego działający adapter/URL. Nie ma żadnego limitu, który sztucznie wymusza PARTIAL/BLOCKED.
+- Obowiązuje data **publikacji**, a nie data odkrycia; podczas pierwszego odczytu stare treści nie są nowymi newsami. Kandydatów z już zapisanym faktem nie dublujemy, nawet przy odmiennych adresach źródeł.
+- Adapter `apify` jest zarezerwowany w schemacie i kodzie. Pozostaje **nieaktywny** i nie jest wymagany do działania RSS/HTML.
+- Sekret wywołań harmonogramu jest w Supabase Vault; brak dostępu publicznego. Nie zapisujemy sekretu do GitHuba.
+- W przypadku awarii zapisu do bazy nie oznaczaj sukcesu. Awaria zewnętrznego odczytu Vercel `/api/items` nie unieważnia potwierdzonego kandydata w Supabase; zgłaszaj ją osobno.
