@@ -179,8 +179,9 @@ Deno.serve(async (req:Request) => {
         seen=unique.length;stats.items_seen+=seen;
         if(!seen)throw new Error("no article links parsed; source not counted as checked");
         status="NO_NEW_CONTENT";stats.sources_readable++;
-        const known=await db("content_radar_discoveries?select=canonical_url&source_id=eq."+encodeURIComponent(conf.source_id)+"&limit=5000");
-        const knownUrls=new Set(known.map((r:Row)=>r.canonical_url));
+        const known=await db("content_radar_discoveries?select=canonical_url,status,metadata&source_id=eq."+encodeURIComponent(conf.source_id)+"&limit=5000");
+        const knownByUrl=new Map(known.map((r:Row)=>[r.canonical_url,r]));
+        const knownUrls=new Set(knownByUrl.keys());
         const knownInitially = new Set(knownUrls);
         for(const x of unique){
           const existing=knownUrls.has(x.url); if(existing && !repairExisting) continue;
@@ -202,11 +203,13 @@ Deno.serve(async (req:Request) => {
             if(published && (!latest||published>latest))latest=published;
             const age=published?(Date.now()-new Date(published).valueOf())/86400000:0;
             const baseline=!published || age>21;
+            const previous:Row=knownByUrl.get(x.url)??{};
             const record={
               source_id:conf.source_id,canonical_url:x.url,title:(a.title||x.title).slice(0,250),
               excerpt:(x.excerpt||a.body.slice(0,700)).slice(0,1300),published_at:published,
               body_text:a.body,read_at:new Date().toISOString(),profile_keys:profiles.map((p:Row)=>p.profile_key),
-              status:baseline?"REVIEWED":"NEW",metadata:{adapter:conf.adapter,baseline,verified_full_text:true}
+              status:existing?(previous.status||"REVIEWED"):(baseline?"REVIEWED":"NEW"),
+              metadata:{...(previous.metadata||{}),adapter:conf.adapter,baseline,verified_full_text:true}
             };
             await db("content_radar_discoveries?on_conflict=source_id,canonical_url","POST",record);
             if(!existing)stats.new_discoveries++;knownUrls.add(x.url);
