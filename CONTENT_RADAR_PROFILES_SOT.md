@@ -251,7 +251,7 @@ Historyczne Issues `[CONTENT]` mogą pozostać jako archiwalny ślad, ale nie s�
 `content-radar-collector` (`supabase/functions/content-radar-collector/index.ts`),
 uruchamiany z Supabase Cron `content-radar-real-collector` co 30 minut.
 
-- `public.content_radar_collector_sources` – techniczny adapter, endpoint i enabled; nie zmienia przypisania i aktywności źródła w profilach. Obecna działająca konfiguracja obejmuje RSS ZUS, HTML Fakturownia, RSS MamStartup i RSS Bizblog Spider’s Web. Testowy adapter RSS MamBiznes jest wyłączony, ponieważ podany endpoint zwraca jedynie pusty materiał demonstracyjny. Pozostałe wpisy Registry bez zweryfikowanego endpointu są **nieobjęte automatycznym kolektorem**; NIE wolno raportować ich jako przeskanowanych.
+- `public.content_radar_collector_sources` – jedyny runtime rejestr konfiguracji adapterów: endpoint, typ, `enabled`, `last_attempted_at`, `options`. AKTUALNY stan sprawdź zapytaniem do bazy: nie utrzymujemy ręcznie zamrożonej liczby źródeł w tym dokumencie. Na 2026-10-08 zweryfikowano 15 aktywnych adapterów: ZUS, Fakturownia, MamStartup, Bizblog Spider’s Web, Firmove by ING, Krajowa Izba Podatkowa, Bankier.pl, Money.pl, inFakt, GUS, MF (wiadomości gov.pl), KAS, MRiT, MRPiPS, UOKiK. Dla pozostałych źródeł status `enabled=false` albo brak konfiguracji oznacza BRAK automatycznego pokrycia. Nigdy nie licz zdefiniowanych, ale nieprzetestowanych endpointów jako źródeł działających.
 - `public.content_radar_discoveries` – artykuły ze zweryfikowanym odczytem treści, linkiem, datą publikacji, profile_keys i statusem selekcji (NEW / REVIEWED / IGNORED). Identyfikacja: UNIQUE(source_id, canonical_url). Wspólne źródło jest pobierane raz, profile oceniają oddzielnie.
 - `public.content_radar_collection_runs` – faktyczny stan kolektora i jego wyniki; `public.content_radar_source_scans` – próby odczytu dla konkretnych przypisanych profili (run_id `collector-UUID`).
 - `READABLE` oznacza faktycznie odczytane artykuły podczas przebiegu; `NO_NEW_CONTENT` oznacza poprawne przeczytanie listy publikacji z samymi już zapisanymi linkami; `PARTIAL` i `BLOCKED` NIE dowodzą odczytu publikacji i nigdy nie oznaczają pokrycia źródła.
@@ -261,3 +261,12 @@ uruchamiany z Supabase Cron `content-radar-real-collector` co 30 minut.
 - Adapter `apify` jest zarezerwowany w schemacie i kodzie. Pozostaje **nieaktywny** i nie jest wymagany do działania RSS/HTML.
 - Sekret wywołań harmonogramu jest w Supabase Vault; brak dostępu publicznego. Nie zapisujemy sekretu do GitHuba.
 - W przypadku awarii zapisu do bazy nie oznaczaj sukcesu. Awaria zewnętrznego odczytu Vercel `/api/items` nie unieważnia potwierdzonego kandydata w Supabase; zgłaszaj ją osobno.
+
+
+### Adaptacje i walidacja 2026-10-08
+
+- RSS: obsługa CDATA w tytułach (np. UOKiK), publikacji i trwałej deduplikacji. Dla GUS korzystaj z rzeczywistego kanału `https://stat.gov.pl/rss/pl/5438/8.xml`, a nie ze strony HTML opatrzonej rozszerzeniem .xml.
+- Gov.pl: tryb `options.mode='govpl'`, który odczytuje karty aktualności (tytuł, ścieżka, data publikacji) zamiast nawigacji serwisu. Treść docelowego artykułu jest weryfikowana niezależnie; artykuły z błędną stroną docelową są odrzucane.
+- UOKiK: body z dedykowanego kontenera `post__content`, zgodność z opisem źródłowym i wiarygodny tytuł.
+- Istniejące błędne próby nie oznaczają działającego adaptera. Stan faktyczny udokumentowany jest ostatnimi przebiegami `content_radar_collection_runs` i `content_radar_source_scans`.
+- Adaptery nieprzetestowane/odrzucone (np. 403, bot-wall, 404, pusta strona, niezgodność tytułu) pozostają wyłączone do czasu poprawy; Apify jest opcjonalnym późniejszym rozszerzeniem i nie blokuje RSS/HTML.
