@@ -29,6 +29,7 @@
 .shared{border-color:#4b5258;color:#c8cdd1}.profile-target{display:inline-flex;align-items:center;border:1px solid var(--accent);border-radius:999px;padding:5px 9px;color:var(--accent);font-size:12px;font-weight:900}
 @media(max-width:760px){.source-head{display:block}.source-controls{justify-content:flex-start;margin-top:11px}.priority-control,.toggle,.remove{min-height:36px}}
 
+.collector-status{display:inline-flex;align-items:center;border:1px solid #465259;border-radius:999px;padding:3px 8px;color:#c6d1d6;font-size:11px;font-weight:850}.collector-status.live{border-color:#52735e;color:#b9e9c6;background:#15231a}.collector-status.failed{border-color:#9b6748;color:#f0c29a;background:#271c17}.collector-status.missing{border-color:#40484d;color:#858f97}.collector-time{color:var(--muted);font-size:11px}.collector-note{margin-top:10px;font-size:13px;color:#a3abb0;line-height:1.4}
 </style>
 </head>
 <body><main>
@@ -45,7 +46,7 @@
   <div class="profile-subtitle" id="profileSubtitle"></div>
 </div>
 
-<div class="meta" id="meta">Ładowanie źródeł profilu…</div>
+<div class="meta" id="meta">Ładowanie źródeł profilu…</div><div class="collector-note">Aktywność w profilu nie oznacza automatycznego monitoringu. Status kolektora i udane odczyty pokazujemy osobno; niepodłączone źródła nie są zaliczane do skanowania.</div>
 <section id="groups"><div class="loading">Ładowanie…</div></section>
 <div class="footer">Wspólny jest tylko katalog techniczny. Przypisanie, aktywność i priorytet źródła są niezależne dla każdego profilu.</div>
 </main>
@@ -136,12 +137,21 @@ function sharedLabel(s){
 function priorityOptions(current){
   return [5,4,3,2,1].map(v=>'<option value="'+v+'"'+(Number(current)===v?' selected':'')+'>P'+v+'</option>').join('');
 }
+function collectorLabel(s){
+  const c=s.collector||{},connected=!!c.collector_enabled;
+  const verified=connected&&!!c.last_success_at&&['READABLE','NO_NEW_CONTENT'].includes(c.latest_status);
+  const state=verified?'MONITOROWANE':connected?'WYMAGA SPRAWDZENIA':c.adapter?'ADAPTER NIEAKTYWNY':'NIEPODŁĄCZONE';
+  const type=verified?'live':connected?'failed':c.adapter?'failed':'missing';
+  const date=c.last_success_at?new Date(c.last_success_at).toLocaleString('pl-PL',{dateStyle:'short',timeStyle:'short'}):null;
+  return '<span class="collector-status '+type+'">'+state+'</span>'+
+    (date?'<span class="collector-time">Odczyt: '+esc(date)+'</span>':'');
+}
 function sourceCard(s){
   const url=s.url?'<a href="'+esc(s.url)+'" target="_blank" rel="noopener">otwórz ↗</a>':'brak URL';
   return '<div class="source'+(s.active?'':' off')+'" data-id="'+esc(s.id)+'">'+
     '<span class="dot"></span>'+
     '<div class="source-body"><div class="source-head"><div class="source-copy"><div class="name">'+esc(s.name)+'</div>'+
-    '<div class="source-meta"><span class="pill">'+esc(s.source_type)+'</span>'+sharedLabel(s)+'<span>'+url+'</span></div></div>'+
+    '<div class="source-meta"><span class="pill">'+esc(s.source_type)+'</span>'+sharedLabel(s)+'<span>'+url+'</span>'+collectorLabel(s)+'</div></div>'+
     '<div class="source-controls">'+
       '<select class="priority-control" data-priority="'+esc(s.id)+'" aria-label="Priorytet źródła">'+priorityOptions(s.priority)+'</select>'+
       '<button class="toggle" data-toggle="'+esc(s.id)+'" data-active="'+(s.active?'1':'0')+'">'+(s.active?'AKTYWNE':'WYŁĄCZONE')+'</button>'+
@@ -152,8 +162,9 @@ function render(){
   const groups={};
   for(const s of sources)(groups[s.category]??=[]).push(s);
   const active=sources.filter(s=>s.active).length;
+  const monitored=sources.filter(s=>s.active&&s.collector?.collector_enabled&&s.collector?.last_success_at&&['READABLE','NO_NEW_CONTENT'].includes(s.collector.latest_status)).length;
   const yt=sources.filter(s=>String(s.source_type).toLowerCase()==='youtube'||String(s.url||'').includes('youtube.com')).length;
-  meta.innerHTML='<strong>'+active+' aktywnych źródeł</strong> · '+sources.length+' przypisanych · '+yt+' YouTube · '+esc(PROFILES[profile].label);
+  meta.innerHTML='<strong>'+monitored+' faktycznie monitorowanych</strong> · '+active+' aktywnych przypisań · '+sources.length+' w profilu · '+yt+' YouTube · '+esc(PROFILES[profile].label);
   root.innerHTML=Object.keys(groups).length
     ?Object.entries(groups).map(([title,items])=>'<details class="group" open><summary><h2>'+esc(title)+'</h2><span class="count">'+items.filter(x=>x.active).length+'/'+items.length+'</span></summary><div class="sources">'+items.map(sourceCard).join('')+'</div></details>').join('')
     :'<div class="loading">Brak źródeł w tym profilu. Dodaj pierwsze źródło przyciskiem u góry.</div>';
