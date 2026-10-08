@@ -251,7 +251,7 @@ Historyczne Issues `[CONTENT]` mogą pozostać jako archiwalny ślad, ale nie s�
 `content-radar-collector` (`supabase/functions/content-radar-collector/index.ts`),
 uruchamiany z Supabase Cron `content-radar-real-collector` co 30 minut.
 
-- `public.content_radar_collector_sources` – jedyny runtime rejestr konfiguracji adapterów: endpoint, typ, `enabled`, `last_attempted_at`, `options`. AKTUALNY stan sprawdź zapytaniem do bazy: nie utrzymujemy ręcznie zamrożonej liczby źródeł w tym dokumencie. Na 2026-10-08 zweryfikowano 15 aktywnych adapterów: ZUS, Fakturownia, MamStartup, Bizblog Spider’s Web, Firmove by ING, Krajowa Izba Podatkowa, Bankier.pl, Money.pl, inFakt, GUS, MF (wiadomości gov.pl), KAS, MRiT, MRPiPS, UOKiK. Dla pozostałych źródeł status `enabled=false` albo brak konfiguracji oznacza BRAK automatycznego pokrycia. Nigdy nie licz zdefiniowanych, ale nieprzetestowanych endpointów jako źródeł działających.
+- `public.content_radar_collector_sources` – jedyny runtime rejestr konfiguracji adapterów: endpoint, typ, `enabled`, `last_attempted_at`, `options`. Aktualna liczba aktywnych źródeł jest pobierana z bazy (`enabled=true`), nigdy z tekstu tego dokumentu. Źródła `enabled=false` lub bez konfiguracji NIE mają potwierdzonego automatycznego monitoringu. Sukces wymaga rzeczywistego odczytu artykułu, nie tylko statusu HTTP 200.
 - `public.content_radar_discoveries` – artykuły ze zweryfikowanym odczytem treści, linkiem, datą publikacji, profile_keys i statusem selekcji (NEW / REVIEWED / IGNORED). Identyfikacja: UNIQUE(source_id, canonical_url). Wspólne źródło jest pobierane raz, profile oceniają oddzielnie.
 - `public.content_radar_collection_runs` – faktyczny stan kolektora i jego wyniki; `public.content_radar_source_scans` – próby odczytu dla konkretnych przypisanych profili (run_id `collector-UUID`).
 - `READABLE` oznacza faktycznie odczytane artykuły podczas przebiegu; `NO_NEW_CONTENT` oznacza poprawne przeczytanie listy publikacji z samymi już zapisanymi linkami; `PARTIAL` i `BLOCKED` NIE dowodzą odczytu publikacji i nigdy nie oznaczają pokrycia źródła.
@@ -270,3 +270,10 @@ uruchamiany z Supabase Cron `content-radar-real-collector` co 30 minut.
 - UOKiK: body z dedykowanego kontenera `post__content`, zgodność z opisem źródłowym i wiarygodny tytuł.
 - Istniejące błędne próby nie oznaczają działającego adaptera. Stan faktyczny udokumentowany jest ostatnimi przebiegami `content_radar_collection_runs` i `content_radar_source_scans`.
 - Adaptery nieprzetestowane/odrzucone (np. 403, bot-wall, 404, pusta strona, niezgodność tytułu) pozostają wyłączone do czasu poprawy; Apify jest opcjonalnym późniejszym rozszerzeniem i nie blokuje RSS/HTML.
+
+
+### Rozbudowa adapterów 2026-10-08 — kolejne źródła
+
+Udokumentowano w `content_radar_collection_runs` i `content_radar_source_scans` rzeczywiste testy artykułów dla Ministerstwa Cyfryzacji, Rzecznika MŚP, Polskiego Instytutu Ekonomicznego, Związku Przedsiębiorców i Pracodawców, Krajowej Izby Gospodarczej, Konfederacji Lewiatan, Związku Rzemiosła Polskiego i Startup Poland. Źródła te można liczyć jako podłączone dopiero, gdy `enabled=true` w technicznym rejestrze i mają świeży pozytywny log odczytu.
+
+Próby niezaliczone: Pracodawcy RP (404), PFR (403), UODO (zbyt szeroka lista przechwytująca nawigację), wFirma (404). Nieaktywnych prób nie wolno automatycznie aktywować tylko dlatego, że domena istnieje. Apify nadal nieużywane. Wzrost liczby źródeł nie oznacza automatycznego przyrostu dobrych kandydatów; selekcja redakcyjna jest osobną warstwą.
