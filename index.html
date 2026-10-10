@@ -116,7 +116,7 @@ function card(a){
  const item=prepared[id];
  const prepButton='<button type="button" class="action prepare" data-action="prepare" data-id="'+esc(id)+'"'+(preparing.has(id)?' disabled':'')+'>'+(preparing.has(id)?'Przygotowuję…':item&&item.method!=='source_text_extract_v2'?'↻ Popraw opis':item?(expanded.has(id)?'✦ Zwiń opis':'✦ Pokaż opis'):'✦ Przygotuj')+'</button>';
  const err=prepareErrors[id]?'<div class="brief-error" role="alert">'+esc(prepareErrors[id])+'</div>':'';
- const details=item&&expanded.has(id)?'<div class="brief"><div class="brief-head"><span class="brief-code">'+esc(item.cr)+'</span><button class="action" type="button" data-action="copy" data-id="'+esc(id)+'">Kopiuj CR</button></div><p>'+esc(item.description)+'</p><a class="brief-link" href="'+esc(link(item.source_url))+'" target="_blank" rel="noopener noreferrer">Źródło ↗</a><p><small>Opis roboczy z pełniejszej treści źródłowej (wybrane fragmenty, bez oceny AI). Sprawdź artykuł przed publikacją.</small></p></div>':'';
+ const details=item&&expanded.has(id)?'<div class="brief"><div class="brief-head"><span class="brief-code">'+esc(item.cr)+'</span><button class="action" type="button" data-action="copy-brief" data-id="'+esc(id)+'">Kopiuj do wątku rolek</button><button class="action" type="button" data-action="copy" data-id="'+esc(id)+'">Kopiuj numer</button><a class="action" href="/api/cr?ref='+encodeURIComponent(item.cr)+'" target="_blank" rel="noopener noreferrer">Link CR ↗</a></div><p>'+esc(item.description)+'</p><a class="brief-link" href="'+esc(link(item.source_url))+'" target="_blank" rel="noopener noreferrer">Źródło ↗</a><p><small>Opis roboczy z pełniejszej treści źródłowej (wybrane fragmenty, bez oceny AI). Sprawdź artykuł przed publikacją.</small></p></div>':'';
  return first+saveButton+hideButton+prepButton+'</div>'+err+details+'</article>';
 }
 function render(){
@@ -140,6 +140,19 @@ messages.addEventListener('click',async function(event){
   storeSet(STORAGE_SAVED,saved);
  }else if(b.dataset.action==='copy'){
   if(prepared[id]&&navigator.clipboard){navigator.clipboard.writeText(prepared[id].cr).catch(function(){prepareErrors[id]='Nie udało się skopiować numeru CR.';render()})}
+  return;
+ }else if(b.dataset.action==='copy-brief'){
+  const entry=prepared[id],article=articles.find(a=>String(a.id)===id);
+  if(entry&&article&&navigator.clipboard){
+    const crLink=location.origin+'/api/cr?ref='+encodeURIComponent(entry.cr);
+    const payload='Opracuj rolkę z materiału '+entry.cr
+      +'\n\nTytuł: '+String(article.title||'')
+      +'\n\nOpis na podstawie treści źródłowej:\n'+entry.description
+      +'\n\nŹródło: '+entry.source_url
+      +'\nKarta CR do odczytu w każdym wątku: '+crLink
+      +'\n\nNumer nowego CR odnosi się do rekordu content_radar_discoveries, a nie do starej tabeli content_radar_items.';
+    navigator.clipboard.writeText(payload).catch(function(){prepareErrors[id]='Nie udało się skopiować materiału do wątku.';render()});
+  }
   return;
  }else if(b.dataset.action==='prepare'){
   if(prepared[id]&&prepared[id].method==='source_text_extract_v2'){
