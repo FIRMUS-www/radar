@@ -39,6 +39,17 @@ button{font:inherit;cursor:pointer}
 .more{margin-top:22px}
 .note{margin-top:24px;color:var(--muted);font-size:12px}
 @media(max-width:640px){.top{align-items:flex-start}.source-link{font-size:13px}.search{width:100%;flex-basis:100%}.toolbar{gap:7px}.tab,.control{padding:8px 11px}}
+
+.action.prepare{border-color:#897a2f;color:#ffe88d}
+.action[disabled]{opacity:.48;cursor:wait}
+.brief{margin-top:15px;padding:16px 18px;background:#191d20;border:1px solid #4a4226;border-left:3px solid var(--accent);border-radius:12px}
+.brief-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:8px}
+.brief-code{color:var(--accent);font-weight:850;letter-spacing:.04em;font-size:16px}
+.brief p{margin:8px 0;color:#e0e4e7}
+.brief small{color:var(--muted)}
+.brief-error{margin:12px 0;color:#ffbaba;font-size:13px}
+.brief-link{display:inline-block;margin-top:7px;color:var(--accent);font-weight:650}
+
 </style>
 </head>
 <body>
@@ -65,12 +76,16 @@ button{font:inherit;cursor:pointer}
 const API='/api/items';
 const STORAGE_HIDDEN='cr_feed_hidden_v1';
 const STORAGE_SAVED='cr_feed_saved_v1';
+const STORAGE_PREPARED='cr_feed_prepared_v1';
 const messages=document.querySelector('#messages');
 const meta=document.querySelector('#meta');
 const more=document.querySelector('#more');
 const search=document.querySelector('#search');
 const refresh=document.querySelector('#refresh');
 let articles=[],view='all',pageSize=80,hidden=readSet(STORAGE_HIDDEN),saved=readSet(STORAGE_SAVED),fetching=false;
+let prepared=readPrepared(),expanded=new Set(Object.keys(prepared)),preparing=new Set(),prepareErrors={};
+function readPrepared(){try{const v=JSON.parse(localStorage.getItem(STORAGE_PREPARED)||'{}');return v&&typeof v==='object'&&!Array.isArray(v)?v:{}}catch{return {}}}
+function storePrepared(){try{localStorage.setItem(STORAGE_PREPARED,JSON.stringify(prepared));return true}catch{meta.textContent='Nie zapisano opisu w pamięci przeglądarki.';return false}}
 function readSet(key){try{const x=JSON.parse(localStorage.getItem(key)||'[]');return new Set(Array.isArray(x)?x.map(String):[])}catch{return new Set()}}
 function storeSet(key,set){try{localStorage.setItem(key,JSON.stringify([...set]));return true}catch{meta.textContent='Uwaga: przeglądarka nie zapisała tej zmiany na stałe.';return false}}
 function esc(value){return String(value==null?'':value).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','"':'&quot;',"'":'&#39;'}[c]})}
@@ -98,7 +113,11 @@ function card(a){
  const first='<article class="message"><div class="message-meta">'+source+'<span>Publikacja: '+esc(date)+'</span><span>W CR: '+esc(discovered)+'</span></div><h2>'+title+'</h2>'+intro+'<div class="actions">';
  const saveButton='<button type="button" class="action'+(isSaved?' saved':'')+'" data-action="save" data-id="'+esc(id)+'">'+(isSaved?'★ Zapisane':'☆ Zapisz')+'</button>';
  const hideButton='<button type="button" class="action" data-action="hide" data-id="'+esc(id)+'">'+(hidden.has(id)?'↶ Przywróć':'✕ Usuń z listy')+'</button>';
- return first+saveButton+hideButton+'</div></article>';
+ const item=prepared[id];
+ const prepButton='<button type="button" class="action prepare" data-action="prepare" data-id="'+esc(id)+'"'+(preparing.has(id)?' disabled':'')+'>'+(preparing.has(id)?'Przygotowuję…':item?(expanded.has(id)?'✦ Zwiń opis':'✦ Pokaż opis'):'✦ Przygotuj')+'</button>';
+ const err=prepareErrors[id]?'<div class="brief-error" role="alert">'+esc(prepareErrors[id])+'</div>':'';
+ const details=item&&expanded.has(id)?'<div class="brief"><div class="brief-head"><span class="brief-code">'+esc(item.cr)+'</span><button class="action" type="button" data-action="copy" data-id="'+esc(id)+'">Kopiuj CR</button></div><p>'+esc(item.description)+'</p><a class="brief-link" href="'+esc(link(item.source_url))+'" target="_blank" rel="noopener noreferrer">Źródło ↗</a><p><small>Opis roboczy z pełniejszej treści źródłowej (wybrane fragmenty, bez oceny AI). Sprawdź artykuł przed publikacją.</small></p></div>':'';
+ return first+saveButton+hideButton+prepButton+'</div>'+err+details+'</article>';
 }
 function render(){
  const list=visibleArticles(),shown=list.slice(0,pageSize);
@@ -110,7 +129,7 @@ function render(){
  more.hidden=shown.length>=list.length;
  more.textContent='Pokaż kolejne ('+(list.length-shown.length)+')';
 }
-messages.addEventListener('click',function(event){
+messages.addEventListener('click',async function(event){
  const b=event.target.closest('button[data-action]');if(!b)return;
  const id=String(b.dataset.id);if(!articles.some(function(a){return String(a.id)===id}))return;
  if(b.dataset.action==='hide'){
@@ -119,6 +138,25 @@ messages.addEventListener('click',function(event){
  }else if(b.dataset.action==='save'){
   if(saved.has(id))saved.delete(id);else saved.add(id);
   storeSet(STORAGE_SAVED,saved);
+ }else if(b.dataset.action==='copy'){
+  if(prepared[id]&&navigator.clipboard){navigator.clipboard.writeText(prepared[id].cr).catch(function(){prepareErrors[id]='Nie udało się skopiować numeru CR.';render()})}
+  return;
+ }else if(b.dataset.action==='prepare'){
+  if(prepared[id]){
+    if(expanded.has(id))expanded.delete(id);else expanded.add(id);
+  }else{
+    if(preparing.has(id))return;
+    preparing.add(id);delete prepareErrors[id];render();
+    try{
+      const response=await fetch('/api/prepare?id='+encodeURIComponent(id),{cache:'no-store'});
+      const result=await response.json().catch(function(){return {}});
+      if(!response.ok)throw new Error(result.error==='SOURCE_TEXT_UNAVAILABLE'||result.error==='SOURCE_TEXT_INSUFFICIENT'?'Brak wystarczającego tekstu artykułu. Nie przygotowuję opisu na podstawie samego tytułu.':'Nie udało się przygotować opisu ze źródła.');
+      if(String(result.discovery_id)!==id||!result.cr||!result.description||!link(result.source_url))throw new Error('Niepełna odpowiedź źródła.');
+      prepared[id]={cr:result.cr,description:result.description,source_url:result.source_url,method:result.method};
+      storePrepared();expanded.add(id);
+    }catch(error){prepareErrors[id]=error.message}
+    finally{preparing.delete(id)}
+  }
  }
  render();
 });
