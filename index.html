@@ -14,13 +14,11 @@ main{max-width:1050px;margin:auto;padding:32px clamp(18px,4vw,48px) 90px}
 a{color:inherit}
 .top{display:flex;justify-content:space-between;align-items:center;gap:20px}
 h1{font-size:clamp(36px,5vw,64px);line-height:1.04;letter-spacing:-.05em;margin:0}
-.lead{color:var(--muted);margin:18px 0 26px;max-width:710px}
 .source-link{white-space:nowrap;text-decoration:none;border-bottom:1px solid var(--border);color:#e0e4e7;padding:8px}
-.toolbar{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
 button{font:inherit;cursor:pointer}
 .control,.action{border:1px solid var(--border);background:#171b1f;color:#e5e8ea;border-radius:999px;padding:9px 14px}
 .control:hover,.action:hover{border-color:var(--accent)}
-.search{min-width:230px;flex:1;background:#111519;color:var(--text);border:1px solid var(--border);border-radius:999px;padding:10px 16px;font:inherit}
+.search{display:block;margin-top:26px;min-width:230px;flex:1;background:#111519;color:var(--text);border:1px solid var(--border);border-radius:999px;padding:10px 16px;font:inherit}
 .search:focus{outline:2px solid #b29c15;outline-offset:2px}
 .meta{font-size:13px;color:var(--muted);min-height:24px;margin:18px 0}
 .message{padding:20px 0 23px;border-top:1px solid var(--border)}
@@ -37,8 +35,6 @@ button{font:inherit;cursor:pointer}
 .error{border:1px solid #864949;background:#301a1a;color:#ffd3d3;border-radius:12px;padding:15px}
 .more{margin-top:22px}
 .note{margin-top:24px;color:var(--muted);font-size:12px}
-.undo-bar{margin:10px 0 16px;color:var(--muted);font-size:14px;display:flex;gap:10px;align-items:center}
-.undo-bar[hidden]{display:none}
 @media(max-width:640px){.top{align-items:flex-start}.source-link{font-size:13px}.search{width:100%;flex-basis:100%}.toolbar{gap:7px}.control{padding:8px 11px}}
 
 .action.prepare{border-color:#897a2f;color:#ffe88d}
@@ -57,16 +53,10 @@ button{font:inherit;cursor:pointer}
 
 <main>
   <header class="top"><h1>Content Radar<span style="color:var(--accent)">.</span></h1><a class="source-link" href="sources.html">Źródła ↗</a></header>
-  <p class="lead">Wiadomości z monitorowanych źródeł, od najnowszych. Bez ocen, rekomendacji i automatycznego usuwania. Ty decydujesz, co zostaje na Twojej liście.</p>
-  <section aria-label="Odświeżanie wiadomości" class="toolbar">
-    <button class="control" type="button" id="refresh">↻ Odśwież</button>
-  </section>
-  <div id="undoBar" class="undo-bar" hidden>Wiadomość usunięta z listy. <button class="action" type="button" id="undoHide">↶ Cofnij</button></div>
   <input class="search" id="search" type="search" placeholder="Szukaj w tytułach i fragmentach…" autocomplete="off" aria-label="Szukaj w wiadomościach">
   <div class="meta" id="meta" role="status">Ładowanie wiadomości…</div>
   <section id="messages" aria-label="Lista wiadomości"></section>
   <button id="more" class="control more" type="button" hidden>Pokaż kolejne</button>
-  <div class="note">„Usuń z listy” tylko ukrywa wpis w tej przeglądarce. Bez kasowania danych źródłowych. Bezpośrednio po ukryciu możesz kliknąć „Cofnij”. Nie jest to ocena wiadomości i niczego nie kasuje ze źródeł.</div>
 </main>
 
 <script>
@@ -80,10 +70,7 @@ const messages=document.querySelector('#messages');
 const meta=document.querySelector('#meta');
 const more=document.querySelector('#more');
 const search=document.querySelector('#search');
-const refresh=document.querySelector('#refresh');
-const undoBar=document.querySelector('#undoBar');
-const undoHide=document.querySelector('#undoHide');
-let articles=[],pageSize=80,hidden=readSet(STORAGE_HIDDEN),saved=readSet(STORAGE_SAVED),fetching=false,lastHidden=null;
+let articles=[],pageSize=80,hidden=readSet(STORAGE_HIDDEN),saved=readSet(STORAGE_SAVED),fetching=false;
 let prepared=readPrepared(),expanded=new Set(Object.keys(prepared)),preparing=new Set(),prepareErrors={};
 function readPrepared(){try{const v=JSON.parse(localStorage.getItem(STORAGE_PREPARED)||'{}');return v&&typeof v==='object'&&!Array.isArray(v)?v:{}}catch{return {}}}
 function storePrepared(){try{localStorage.setItem(STORAGE_PREPARED,JSON.stringify(prepared));return true}catch{meta.textContent='Nie zapisano opisu w pamięci przeglądarki.';return false}}
@@ -121,7 +108,6 @@ function card(a){
 function render(){
  const list=visibleArticles(),shown=list.slice(0,pageSize);
  messages.innerHTML=shown.length?shown.map(card).join(''):'<div class="empty">Brak wiadomości w tym widoku.</div>';
- undoBar.hidden=!(lastHidden!==null&&hidden.has(String(lastHidden)));
  meta.textContent='Wiadomości: '+articles.length+' · na liście: '+list.length+' · pokazano: '+shown.length;
  more.hidden=shown.length>=list.length;
  more.textContent='Pokaż kolejne ('+(list.length-shown.length)+')';
@@ -130,8 +116,7 @@ messages.addEventListener('click',async function(event){
  const b=event.target.closest('button[data-action]');if(!b)return;
  const id=String(b.dataset.id);if(!articles.some(function(a){return String(a.id)===id}))return;
  if(b.dataset.action==='hide'){
-  if(hidden.has(id)){hidden.delete(id);if(lastHidden===id)lastHidden=null;}
-  else{hidden.add(id);lastHidden=id;}
+  hidden.add(id);
   storeSet(STORAGE_HIDDEN,hidden);
  }else if(b.dataset.action==='save'){
   if(saved.has(id))saved.delete(id);else saved.add(id);
@@ -171,21 +156,11 @@ messages.addEventListener('click',async function(event){
  }
  render();
 });
-undoHide.addEventListener('click',function(){
- if(lastHidden!==null&&hidden.has(String(lastHidden))){
-  hidden.delete(String(lastHidden));
-  storeSet(STORAGE_HIDDEN,hidden);
- }
- lastHidden=null;
- render();
-});
 search.addEventListener('input',function(){pageSize=80;render()});
 more.addEventListener('click',function(){pageSize+=80;render()});
-refresh.addEventListener('click',function(){load(true)});
-async function load(manual){
+async function load(){
  if(fetching)return;
- fetching=true;refresh.disabled=true;
- if(manual)meta.textContent='Odświeżanie…';
+ fetching=true;
  try{
   const response=await fetch(API,{cache:'no-store'});
   if(!response.ok)throw new Error('HTTP '+response.status);
@@ -194,12 +169,12 @@ async function load(manual){
   articles=next.filter(function(a){return a&&Number.isSafeInteger(Number(a.id))&&a.title&&a.url}).sort(function(a,b){return Date.parse(b.first_seen_at||0)-Date.parse(a.first_seen_at||0)});
   render();
  }catch(err){
-  if(!articles.length)messages.innerHTML='<div class="error">Nie udało się wczytać wiadomości. Spróbuj „Odśwież”.</div>';
+  if(!articles.length)messages.innerHTML='<div class="error">Nie udało się wczytać wiadomości. Odśwież stronę.</div>';
   meta.textContent='Błąd odczytu wiadomości: '+err.message;
- }finally{fetching=false;refresh.disabled=false}
+ }finally{fetching=false}
 }
-load(false);
-setInterval(function(){if(!document.hidden)load(false)},120000);
+load();
+setInterval(function(){if(!document.hidden)load()},120000);
 
 </script>
 </body></html>
