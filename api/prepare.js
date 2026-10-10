@@ -11,38 +11,80 @@ function createCR(id,iso){
 }
 
 function describeArticle(text){
-  const paragraphs=String(text||'').replace(/\u00a0/g,' ').replace(/\r/g,'\n')
-    .split(/\n+/).map(s=>s.replace(/\s+/g,' ').trim())
-    .filter(s=>s.length>=55&&!/^REKLAMA\b/i.test(s)&&!/^Źródł[oa]:?$/i.test(s));
+  let body=String(text||'').replace(/\u00a0/g,' ').replace(/\r/g,'\n');
+  const footer=/(?:^|\n)\s*(?:Ładowanie\s*\.{2,}|O autorze(?:\s|:|$)|O autorce(?:\s|:|$)|Tagi\s*:|Nota o autorze(?:\s|:|$))/gim;
+  for(const match of body.matchAll(footer)){
+    if(match.index>body.length*.35){body=body.slice(0,match.index);break;}
+  }
+  const lines=body.split(/\n+/).map(s=>s.replace(/\s+/g,' ').trim());
+  const paragraphs=[];let skipRelated=false;
+  for(const line of lines){
+    if(!line)continue;
+    if(/^REKLAMA(?:\s|$)/i.test(line)){skipRelated=false;continue;}
+    if(/^(?:Więcej wiadomości(?:\s+o\b)?|Czytaj także|Zobacz także|Polecamy także|Przeczytaj także|Zobacz również|Powiązane artykuły)\b/i.test(line)){skipRelated=true;continue;}
+    if(skipRelated){if(line.length>400)skipRelated=false;else continue;}
+    if(/^(?:Tagi\s*:|Autor(?:ka)?\s*:|Redaktor(?:ka)?(?:\s|$)|Redakcja(?:\s|$)|Udostępnij|Obserwuj|Subskrybuj|Spis treści|Fot\.|Źródło\s*:)/i.test(line))continue;
+    if(/\b(?:jest redaktorem|jest dziennikarzem|jako dziennikarz|tematyką ekonomiczną zajmuje się|wcześniej współtworzył|w redakcji pracuje|pisze o biznesie|pracował w redakcji|absolwent dziennikarstwa)\b/i.test(line))continue;
+    if(line.length<65)continue;
+    paragraphs.push(line.replace(/\s+([,.!?;:])/g,'$1').replace(/([\p{L}\p{N}])\s+-\s*(\p{Ll}{1,2})\b/gu,'$1-$2'));
+  }
   const sentences=[];
-  for(const paragraph of paragraphs){
-    const safe=paragraph.replace(/\b(proc|tys|mln|mld|np|ok|art|ust|pkt)\./giu,'$1§');
-    const parts=safe.split(/(?<=[.!?])\s+(?=[A-ZĄĆĘŁŃÓŚŹŻ„"0-9])/u)
-      .map(s=>s.replaceAll('§','.'));
-    for(const value of parts){
-      const sentence=value.trim();
-      if(sentence.length>=55&&sentence.length<=450&&!/^(REKLAMA|ZOBACZ|CZYTAJ|POLECAMY)\b/i.test(sentence)){
-        sentences.push(sentence);
-      }
+  for(let p=0;p<paragraphs.length;p++){
+    const protectedText=paragraphs[p].replace(/\b(proc|tys|mln|mld|np|ok|art|ust|pkt|dr|prof)\./giu,'$1§');
+    const parts=protectedText.split(/(?<=[.!?])\s+(?=[A-ZĄĆĘŁŃÓŚŹŻ„"0-9])/u).map(s=>s.replaceAll('§','.').trim());
+    for(const sentence of parts){
+      if(sentence.length<54||sentence.length>510||!/[.!?][”"'»)]?$/.test(sentence))continue;
+      if(/^(?:Określają|Ona|Oni|To właśnie)(?:\s|$)/iu.test(sentence))continue;
+      if(/^(?:Zobacz|Czytaj|Udostępnij|Fot\.|REKLAMA|Wideo|O autorze)\b/i.test(sentence))continue;
+      sentences.push({sentence,paragraph:p,index:sentences.length});
     }
   }
   if(!sentences.length)return '';
-  const candidates=sentences.map((sentence,index)=>({
-    index,sentence,
-    score:(index===0?12:index===1?8:index===2?3:0)
-      +(/\d/.test(sentence)?3:0)
-      +(/\b(?:według|wynika|dotycz|oznacza|zmian|limit|podatek|ZUS|VAT|KSeF|firma|przedsiębiorc|ustaw|decyzj|sąd|urząd|koszt|złot|proc)\w*/i.test(sentence)?2:0)
-  }));
-  const picked=candidates.slice(0,1);
-  const rest=candidates.slice(1).sort((a,b)=>b.score-a.score||a.index-b.index);
-  for(const item of rest){
-    if(picked.length>=4)break;
-    if(picked.reduce((n,x)=>n+x.sentence.length+1,0)+item.sentence.length>860)continue;
-    picked.push(item);
+  const maxLength=1900,maxItems=11;
+  const chosen=[];
+  for(const lead of sentences.filter(s=>s.paragraph===sentences[0].paragraph).slice(0,3)){
+    if(chosen.reduce((n,c)=>n+c.sentence.length+1,0)+lead.sentence.length>680)break;
+    chosen.push(lead);
   }
-  return picked.sort((a,b)=>a.index-b.index).map(x=>x.sentence).join(' ').slice(0,1000);
+  if(!chosen.length)chosen.push(sentences[0]);
+  const ranked=sentences.slice(1).map(item=>{
+    const s=item.sentence;
+    const score=
+      (/\b(?:jeśli|gdy|kiedy|dopiero|warunk|wtedy|wyjąt|obowiąz|powinn|musi|muszą|trzeba|nie trzeba|nie musi|wymaga|konieczn|może więc|można więc)\w*/i.test(s)?7:0)
+      +(/\b(?:wynika|potwierdził|wyjaśnił|uznał|przyznał|oznacza|w praktyce|dla przedsiębiorców|dla firm|to znaczy|w efekcie|w rezultacie|zatem|podsumowując)\b/i.test(s)?6:0)
+      +(/\b\d+(?:[,.]\d+)?\s*(?:proc\.|%|zł|tys\.|mln|mld|euro)/i.test(s)?4:0)
+      +(/\b(?:jeśli|gdy|zażąda|zażądał|termin|warun|przypad|wyjątk|w ciągu)\w*/i.test(s)?5:0)
+      +(/\b(?:posłużyć|dokument|dowod|nota|notą|rozlicz|zestawien|udokumentow)\w*/i.test(s)?3:0)
+      +(/[0-9]/.test(s)?1:0)
+      +(item.index<7?4:item.index<16?2:1)
+      +(item.paragraph!==sentences[0].paragraph?2:0);
+    return {...item,score};
+  }).sort((a,b)=>b.score-a.score||a.index-b.index);
+  const tokens=s=>new Set((s.toLowerCase().match(/\p{L}{4,}/gu)||[])
+    .filter(t=>!/^(?:oraz|który|która|które|których|przez|swoje|jednak|także|tylko|tego|taka|tych|takim|takiej|taki|przy|więc|jako|można|może|jest|został|została|będzie|gdyby|musi|firmy)$/.test(t)));
+  const similarity=(a,b)=>{
+    const A=tokens(a),B=tokens(b);if(!A.size||!B.size)return 0;
+    let shared=0;for(const t of A)if(B.has(t))shared++;
+    return shared/Math.min(A.size,B.size);
+  };
+  const remaining=[...ranked].filter(x=>!chosen.some(c=>c.index===x.index));
+  while(remaining.length&&chosen.length<maxItems){
+    const possible=remaining.filter(item=>
+      chosen.reduce((n,c)=>n+c.sentence.length+1,0)+item.sentence.length<=maxLength
+      &&chosen.every(c=>similarity(c.sentence,item.sentence)<.72));
+    if(!possible.length)break;
+    possible.sort((a,b)=>{
+      const score=item=>item.score
+        -chosen.filter(c=>c.paragraph===item.paragraph).length*6
+        +(chosen.every(c=>c.paragraph!==item.paragraph)?3:0);
+      return score(b)-score(a)||a.index-b.index;
+    });
+    const pick=possible[0];
+    chosen.push(pick);
+    remaining.splice(remaining.findIndex(x=>x.index===pick.index),1);
+  }
+  return chosen.sort((a,b)=>a.index-b.index).map(x=>x.sentence).join(' ');
 }
-
 export default async function handler(req,res){
   res.setHeader('Cache-Control','no-store,max-age=0');
   if(req.method!=='GET'){res.setHeader('Allow','GET');return res.status(405).json({error:'METHOD_NOT_ALLOWED'});}
@@ -69,7 +111,7 @@ export default async function handler(req,res){
       title:doc.title,
       description,
       source_url:source.href,
-      method:'source_text_extract_v1'
+      method:'source_text_extract_v2'
     });
   }catch(e){
     return res.status(502).json({error:'SOURCE_PREPARATION_FAILED'});

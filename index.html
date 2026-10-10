@@ -114,7 +114,7 @@ function card(a){
  const saveButton='<button type="button" class="action'+(isSaved?' saved':'')+'" data-action="save" data-id="'+esc(id)+'">'+(isSaved?'★ Zapisane':'☆ Zapisz')+'</button>';
  const hideButton='<button type="button" class="action" data-action="hide" data-id="'+esc(id)+'">'+(hidden.has(id)?'↶ Przywróć':'✕ Usuń z listy')+'</button>';
  const item=prepared[id];
- const prepButton='<button type="button" class="action prepare" data-action="prepare" data-id="'+esc(id)+'"'+(preparing.has(id)?' disabled':'')+'>'+(preparing.has(id)?'Przygotowuję…':item?(expanded.has(id)?'✦ Zwiń opis':'✦ Pokaż opis'):'✦ Przygotuj')+'</button>';
+ const prepButton='<button type="button" class="action prepare" data-action="prepare" data-id="'+esc(id)+'"'+(preparing.has(id)?' disabled':'')+'>'+(preparing.has(id)?'Przygotowuję…':item&&item.method!=='source_text_extract_v2'?'↻ Popraw opis':item?(expanded.has(id)?'✦ Zwiń opis':'✦ Pokaż opis'):'✦ Przygotuj')+'</button>';
  const err=prepareErrors[id]?'<div class="brief-error" role="alert">'+esc(prepareErrors[id])+'</div>':'';
  const details=item&&expanded.has(id)?'<div class="brief"><div class="brief-head"><span class="brief-code">'+esc(item.cr)+'</span><button class="action" type="button" data-action="copy" data-id="'+esc(id)+'">Kopiuj CR</button></div><p>'+esc(item.description)+'</p><a class="brief-link" href="'+esc(link(item.source_url))+'" target="_blank" rel="noopener noreferrer">Źródło ↗</a><p><small>Opis roboczy z pełniejszej treści źródłowej (wybrane fragmenty, bez oceny AI). Sprawdź artykuł przed publikacją.</small></p></div>':'';
  return first+saveButton+hideButton+prepButton+'</div>'+err+details+'</article>';
@@ -142,7 +142,7 @@ messages.addEventListener('click',async function(event){
   if(prepared[id]&&navigator.clipboard){navigator.clipboard.writeText(prepared[id].cr).catch(function(){prepareErrors[id]='Nie udało się skopiować numeru CR.';render()})}
   return;
  }else if(b.dataset.action==='prepare'){
-  if(prepared[id]){
+  if(prepared[id]&&prepared[id].method==='source_text_extract_v2'){
     if(expanded.has(id))expanded.delete(id);else expanded.add(id);
   }else{
     if(preparing.has(id))return;
