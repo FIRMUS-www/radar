@@ -97,6 +97,17 @@ function articleBody(html: string, titleHint = "", host = "") {
   let body = (articleText.length>=450 ? articleText : mainText.length>=450 ? mainText : stripHtml(page)).slice(0,20000);
   // Liferay/ZUS includes massive navigation before the article. Use the LAST occurrence
   // of the verified feed headline and never mark menu text as an article body.
+  // PIP (Joomla) keeps the real text under itemprop=articleBody and navigation/footer outside.
+  // Never mistake related links, menus or cookie banners for the article itself.
+  if (host==="www.pip.gov.pl" || host==="pip.gov.pl") {
+    const heading=html.match(/<h1\b[^>]*itemprop=["']headline["'][^>]*>([\s\S]*?)<\/h1>/i)?.[1]||"";
+    const container=html.match(/<div\b[^>]*itemprop=["']articleBody["'][^>]*>([\s\S]*?)<aside\b/i)?.[1]||"";
+    const verifiedTitle=stripHtml(heading).replace(/\s+/g," ").trim();
+    const verifiedContent=stripHtml(container).replace(/\s+/g," ").trim();
+    if(verifiedTitle.length<5 || verifiedContent.length<220)
+      throw new Error("PIP verified article block missing or too short");
+    body=(verifiedTitle+"\n"+verifiedContent).slice(0,18000);
+  }
   if (host==="www.zus.pl" || host==="zus.pl") {
     const full=stripHtml(html);
     const needle=titleHint.replace(/\s+/g," ").trim();
