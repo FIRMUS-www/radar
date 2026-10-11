@@ -13,6 +13,17 @@ body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-ap
 main{max-width:1050px;margin:auto;padding:32px clamp(18px,4vw,48px) 90px}
 a{color:inherit}
 .top{display:flex;justify-content:space-between;align-items:center;gap:20px}
+.header-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:flex-end}
+.sync-trigger{font:inherit;background:transparent;cursor:pointer}
+.sync-panel{margin-top:18px;padding:16px;border:1px solid var(--border);border-radius:14px;background:#191d20}
+.sync-panel[hidden]{display:none}
+.sync-panel p{margin:8px 0;color:var(--muted);font-size:14px}
+.sync-panel small{color:var(--muted);font-size:12px}
+.sync-head,.sync-link-row{display:flex;gap:10px;align-items:center;justify-content:space-between}
+.sync-link-row{margin:12px 0}
+.sync-invite{flex:1;min-width:0;background:#0d1013;border:1px solid var(--border);color:var(--text);font:inherit;padding:9px;border-radius:8px}
+@media(max-width:640px){.header-actions{gap:5px}.sync-trigger{font-size:13px}.sync-link-row{flex-wrap:wrap}.sync-invite{flex-basis:100%}}
+
 h1{font-size:clamp(36px,5vw,64px);line-height:1.04;letter-spacing:-.05em;margin:0}
 .source-link{white-space:nowrap;text-decoration:none;border-bottom:1px solid var(--border);color:#e0e4e7;padding:8px}
 button{font:inherit;cursor:pointer}
@@ -52,7 +63,13 @@ button{font:inherit;cursor:pointer}
 <body>
 
 <main>
-  <header class="top"><h1>Content Radar<span style="color:var(--accent)">.</span></h1><a class="source-link" href="sources.html">Źródła ↗</a></header>
+  <header class="top"><h1>Content Radar<span style="color:var(--accent)">.</span></h1><nav class="header-actions" aria-label="Opcje"><button class="source-link sync-trigger" type="button" id="syncLink">Połącz telefon</button><a class="source-link" href="sources.html">Źródła ↗</a></nav></header>
+  <section id="syncPanel" class="sync-panel" hidden aria-label="Synchronizacja urządzeń">
+    <div class="sync-head"><strong>Synchronizacja urządzeń</strong><button id="syncClose" type="button" class="action">Zamknij</button></div>
+    <p>Skopiuj link i otwórz go raz na Androidzie. Oba urządzenia będą wtedy pokazywać te same ukryte i zapisane wiadomości.</p>
+    <div class="sync-link-row"><input id="syncInvite" class="sync-invite" type="text" readonly aria-label="Prywatny link do połączenia telefonu"><button id="syncCopy" type="button" class="action">Kopiuj link</button></div>
+    <small id="syncInfo">Nie udostępniaj linku innym osobom — zapewnia dostęp do Twojej listy.</small>
+  </section>
   <input class="search" id="search" type="search" placeholder="Szukaj w tytułach i fragmentach…" autocomplete="off" aria-label="Szukaj w wiadomościach">
   <div class="meta" id="meta" role="status">Ładowanie wiadomości…</div>
   <section id="messages" aria-label="Lista wiadomości"></section>
@@ -66,12 +83,128 @@ const API='/api/items';
 const STORAGE_HIDDEN='cr_feed_hidden_v1';
 const STORAGE_SAVED='cr_feed_saved_v1';
 const STORAGE_PREPARED='cr_feed_prepared_v1';
+const STORAGE_SYNC='cr_feed_sync_token_v1';
+const STORAGE_PENDING='cr_feed_sync_pending_v1';
+const SYNC_PATTERN=/^[0-9a-f]{64}$/;
+const SYNC_ID=/^[1-9][0-9]{0,11}$/;
 const messages=document.querySelector('#messages');
 const meta=document.querySelector('#meta');
 const more=document.querySelector('#more');
+const syncLink=document.querySelector('#syncLink');
+const syncPanel=document.querySelector('#syncPanel');
+const syncInvite=document.querySelector('#syncInvite');
+const syncCopy=document.querySelector('#syncCopy');
+const syncClose=document.querySelector('#syncClose');
+const syncInfo=document.querySelector('#syncInfo');
 const search=document.querySelector('#search');
 let articles=[],pageSize=80,hidden=readSet(STORAGE_HIDDEN),saved=readSet(STORAGE_SAVED),fetching=false;
 let prepared=readPrepared(),expanded=new Set(Object.keys(prepared)),preparing=new Set(),prepareErrors={};
+let syncToken=readSyncToken(),syncPending=readPending(),syncBusy=false,syncConnecting=false;
+
+function readSyncToken(){try{const t=localStorage.getItem(STORAGE_SYNC);return SYNC_PATTERN.test(t||'')?t:null}catch{return null}}
+function readPending(){try{
+ const a=JSON.parse(localStorage.getItem(STORAGE_PENDING)||'[]');
+ return Array.isArray(a)?a.filter(x=>x&&['hidden','saved'].includes(x.kind)&&SYNC_ID.test(x.id)&&typeof x.enabled==='boolean').slice(-10000):[];
+}catch{return []}}
+function storePending(){try{localStorage.setItem(STORAGE_PENDING,JSON.stringify(syncPending))}catch{syncInfo.textContent='Nie można zapisać kolejki synchronizacji w przeglądarce.'}}
+function syncUi(){syncLink.textContent=syncToken?'✓ Synchronizacja':'Połącz telefon';if(syncToken)syncInvite.value='https://zarzad-radar.vercel.app/#cr-sync='+syncToken}
+function applyRemote(data){
+ if(!data||!Array.isArray(data.hidden)||!Array.isArray(data.saved))throw Error('Błędna odpowiedź synchronizacji.');
+ const h=data.hidden.map(String),s=data.saved.map(String);
+ if(h.some(x=>!SYNC_ID.test(x))||s.some(x=>!SYNC_ID.test(x)))throw Error('Błędny stan synchronizacji.');
+ hidden=new Set(h);saved=new Set(s);
+ storeSet(STORAGE_HIDDEN,hidden);
+ storeSet(STORAGE_SAVED,saved);
+ render();
+}
+async function syncRequest(body){
+ const response=await fetch('/api/sync',{
+  method:'POST',headers:{'Content-Type':'application/json'},
+  body:JSON.stringify(body),cache:'no-store'
+ });
+ const data=await response.json().catch(function(){return {}});
+ if(!response.ok)throw Error('Brak połączenia z synchronizacją (HTTP '+response.status+').');
+ return data;
+}
+function enqueueSync(kind,id,enabled){
+ if(!syncToken)return;
+ syncPending=syncPending.filter(x=>!(x.kind===kind&&x.id===id));
+ syncPending.push({kind,id,enabled});
+ storePending();
+ pullSync();
+}
+async function pullSync(){
+ if(!syncToken||syncBusy||syncConnecting)return;
+ syncBusy=true;
+ try{
+  while(syncPending.length){
+   const action=syncPending[0];
+   await syncRequest({op:'change',token:syncToken,kind:action.kind,id:action.id,enabled:action.enabled});
+   if(syncPending[0]===action)syncPending.shift();
+   else syncPending=syncPending.filter(x=>x!==action);
+   storePending();
+  }
+  const remote=await syncRequest({op:'get',token:syncToken});
+  if(!syncPending.length)applyRemote(remote);
+  syncInfo.textContent='Urządzenia połączone. Zmiany synchronizują się automatycznie.';
+  syncUi();
+ }catch(e){
+  syncInfo.textContent='Synchronizacja chwilowo niedostępna. Zmiany lokalne są zachowane i zostaną ponowione.';
+ }finally{syncBusy=false}
+}
+async function connectSync(token,fromLink){
+ if(syncConnecting)return false;
+ syncConnecting=true;
+ syncLink.disabled=true;
+ try{
+  const remote=await syncRequest({op:'join',token,hidden:[...hidden],saved:[...saved]});
+  if(syncToken!==token){syncPending=[];storePending()}
+  syncToken=token;
+  localStorage.setItem(STORAGE_SYNC,token);
+  applyRemote(remote);
+  syncUi();
+  syncInfo.textContent='Połączono. Teraz możesz korzystać z CR na obu urządzeniach.';
+  if(fromLink)history.replaceState(null,'',location.pathname+location.search);
+  return true;
+ }catch(e){
+  syncInfo.textContent='Nie udało się połączyć urządzeń. Spróbuj ponownie.';
+  syncPanel.hidden=false;
+  return false;
+ }finally{syncConnecting=false;syncLink.disabled=false}
+}
+function makeSyncToken(){
+ if(!crypto?.getRandomValues)throw Error('Bezpieczne parowanie wymaga HTTPS.');
+ const bytes=new Uint8Array(32);crypto.getRandomValues(bytes);
+ return Array.from(bytes,x=>x.toString(16).padStart(2,'0')).join('');
+}
+async function initializeSync(){
+ const invite=new URLSearchParams(location.hash.slice(1)).get('cr-sync');
+ if(invite&&SYNC_PATTERN.test(invite)){
+  syncPanel.hidden=false;
+  await connectSync(invite,true);
+ }else if(syncToken){syncUi();await pullSync()}
+ else syncUi();
+}
+syncLink.addEventListener('click',async function(){
+ syncPanel.hidden=false;
+ if(!syncToken){
+  try{await connectSync(makeSyncToken(),false)}
+  catch(e){syncInfo.textContent='Nie udało się utworzyć bezpiecznego linku.'}
+ }else{syncUi();syncInfo.textContent='Otwórz ten link raz na drugim urządzeniu.'}
+});
+syncClose.addEventListener('click',function(){syncPanel.hidden=true});
+syncCopy.addEventListener('click',function(){
+ if(!syncInvite.value)return;
+ if(navigator.clipboard?.writeText){
+  navigator.clipboard.writeText(syncInvite.value)
+   .then(function(){syncInfo.textContent='Link skopiowany. Otwórz go raz na Androidzie.'})
+   .catch(function(){syncInvite.focus();syncInvite.select();syncInfo.textContent='Zaznaczony link możesz skopiować ręcznie.'});
+ }else{syncInvite.focus();syncInvite.select();syncInfo.textContent='Zaznaczony link możesz skopiować ręcznie.'}
+});
+window.addEventListener('focus',function(){pullSync()});
+document.addEventListener('visibilitychange',function(){if(!document.hidden)pullSync()});
+setInterval(function(){if(!document.hidden)pullSync()},30000);
+
 function readPrepared(){try{const v=JSON.parse(localStorage.getItem(STORAGE_PREPARED)||'{}');return v&&typeof v==='object'&&!Array.isArray(v)?v:{}}catch{return {}}}
 function storePrepared(){try{localStorage.setItem(STORAGE_PREPARED,JSON.stringify(prepared));return true}catch{meta.textContent='Nie zapisano opisu w pamięci przeglądarki.';return false}}
 function readSet(key){try{const x=JSON.parse(localStorage.getItem(key)||'[]');return new Set(Array.isArray(x)?x.map(String):[])}catch{return new Set()}}
@@ -118,9 +251,11 @@ messages.addEventListener('click',async function(event){
  if(b.dataset.action==='hide'){
   hidden.add(id);
   storeSet(STORAGE_HIDDEN,hidden);
+  enqueueSync('hidden',id,true);
  }else if(b.dataset.action==='save'){
   if(saved.has(id))saved.delete(id);else saved.add(id);
   storeSet(STORAGE_SAVED,saved);
+  enqueueSync('saved',id,saved.has(id));
  }else if(b.dataset.action==='copy'){
   if(prepared[id]&&navigator.clipboard){navigator.clipboard.writeText(prepared[id].cr).catch(function(){prepareErrors[id]='Nie udało się skopiować numeru CR.';render()})}
   return;
@@ -174,6 +309,7 @@ async function load(){
  }finally{fetching=false}
 }
 load();
+initializeSync();
 setInterval(function(){if(!document.hidden)load()},120000);
 
 </script>
