@@ -76,6 +76,24 @@ function htmlEntries(html: string, base: string, path: string): Article[] {
   }
   return [...found.values()];
 }
+// Joomla PIP listing wraps dates and thumbnails in anchors.
+// Read the verified <h3> card heading, not the surrounding dates or images.
+function pipEntries(html: string, base: string, path: string): Article[] {
+  const found=new Map<string,Article>();
+  const anchors=html.matchAll(/<a\b([^>]*?)href\s*=\s*["']([^"']+)["']([^>]*)>([\s\S]*?)<\/a>/gi);
+  for(const match of anchors) {
+    const url=absolute(match[2],base);
+    if(!url||!sameOrigin(url,base))continue;
+    const pathname=new URL(url).pathname;
+    if(!pathname.startsWith(path)||pathname.length<path.length+5)continue;
+    const heading=match[4].match(/<h3\b[^>]*>([\s\S]*?)<\/h3>/i)?.[1]||"";
+    const title=stripHtml(heading).replace(/\s+/g," ").trim();
+    if(title.length<5||title.length>250)continue;
+    const published_at=polishPublication("Dodano: "+stripHtml(match[4]).replace(/\s+/g," "));
+    found.set(url,{url,title,published_at,excerpt:""});
+  }
+  return [...found.values()];
+}
 async function db(path: string, method = "GET", body?: unknown): Promise<any> {
   const r = await fetch(API + path,{method,headers:{apikey:SERVICE_KEY,authorization:"Bearer "+SERVICE_KEY,"Content-Type":"application/json",Prefer:"return=representation,resolution=merge-duplicates"},body:body===undefined?undefined:JSON.stringify(body)});
   const s=await r.text();if(!r.ok)throw new Error("database "+method+" "+r.status+" "+s.slice(0,350));
@@ -186,7 +204,7 @@ Deno.serve(async (req:Request) => {
       try{
         if(conf.adapter==="apify")throw new Error("Apify adapter reserved; integration disabled until explicitly configured");
         const raw=await page(conf.endpoint);
-        const all:Article[]=conf.adapter==="rss"?rssEntries(raw,conf.endpoint):(conf.options?.mode==="govpl"?governmentEntries(raw,conf.endpoint,conf.options?.allowed_path||"/"):htmlEntries(raw,conf.endpoint,conf.options?.allowed_path||"/"));
+        const all:Article[]=conf.adapter==="rss"?rssEntries(raw,conf.endpoint):(conf.options?.mode==="govpl"?governmentEntries(raw,conf.endpoint,conf.options?.allowed_path||"/"):conf.options?.mode==="pip"?pipEntries(raw,conf.endpoint,conf.options?.allowed_path||"/aktualnosci/"):htmlEntries(raw,conf.endpoint,conf.options?.allowed_path||"/"));
         const unique=[...new Map(all.map(x=>[x.url,x])).values()].slice(0,Math.min(Math.max(Number(conf.options?.limit)||8,1),15));
         seen=unique.length;stats.items_seen+=seen;
         if(!seen)throw new Error("no article links parsed; source not counted as checked");
