@@ -15,6 +15,15 @@ h1{font-size:clamp(36px,5vw,64px);line-height:1.04;letter-spacing:-.05em;margin:
 .btn,.action,.link{display:inline-flex;gap:5px;align-items:center;justify-content:center;font:inherit;text-decoration:none;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:999px;padding:8px 13px;cursor:pointer}
 .btn:hover,.action:hover,.link:hover{border-color:var(--accent)}
 .btn.add{background:var(--accent);color:#161616;border-color:var(--accent);font-weight:750}
+.source-search{display:block;width:min(100%,520px);margin-top:24px;padding:11px 16px;border:1px solid var(--border);border-radius:999px;background:#121619;color:var(--text);font:inherit}
+.source-search:focus{outline:2px solid var(--accent);outline-offset:2px}
+.url-edit{border:0;background:none;color:var(--accent);font:inherit;font-size:12px;cursor:pointer;text-decoration:underline;text-underline-offset:3px;padding:2px}
+.url-edit:hover{color:#ffe981}
+.url-form{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:12px;border-top:1px solid var(--border);padding-top:12px}
+.url-form input{min-width:0;flex:1 1 190px;padding:8px 10px;border:1px solid var(--border);border-radius:9px;background:#0d1013;color:var(--text);font:inherit;font-size:13px}
+.url-form .action{font-size:12px;padding:7px 10px}
+.url-form small{flex-basis:100%;font-size:11px;color:var(--muted)}
+.url-error{flex-basis:100%;color:var(--danger);font-size:12px}
 .meta{margin-top:22px;margin-bottom:14px;color:var(--muted);font-size:13px;min-height:22px}
 .category{border-top:1px solid var(--border)}
 .category summary{display:flex;align-items:center;justify-content:space-between;gap:15px;cursor:pointer;padding:18px 0;list-style:none}
@@ -63,6 +72,7 @@ form{padding:20px 24px 24px}
     <button class="btn add" type="button" id="add">+ Dodaj źródło</button>
   </nav>
 </header>
+<input id="sourceSearch" class="source-search" type="search" autocomplete="off" aria-label="Szukaj źródeł" placeholder="Szukaj źródła po nazwie lub adresie…">
 <div id="meta" class="meta" role="status">Ładowanie źródeł…</div>
 <section id="groups" aria-label="Lista źródeł"></section>
 </main>
@@ -104,10 +114,23 @@ const API='https://oxpvuxxcskqggfqgefzg.supabase.co/functions/v1/content-radar-s
 const LEGACY_PROFILES=['accounting','bizgenerator'];
 const groups=document.querySelector('#groups'),meta=document.querySelector('#meta'),
  dialog=document.querySelector('#sourceDialog'),form=document.querySelector('#sourceForm'),
- formStatus=document.querySelector('#formStatus'),submit=document.querySelector('#submit');
-let sources=[];
+ formStatus=document.querySelector('#formStatus'),submit=document.querySelector('#submit'),
+ sourceSearch=document.querySelector('#sourceSearch');
+let sources=[],editingUrlId=null,urlError='';
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function safeUrl(raw){try{const u=new URL(raw);return ['http:','https:'].includes(u.protocol)?u.href:''}catch{return ''}}
+function normalizeUrl(value){
+ const raw=String(value||'').trim();
+ if(!raw||raw.length>2048)throw Error('Podaj adres URL o długości do 2048 znaków.');
+ if(/^[a-z][a-z\d+.-]*:/i.test(raw)&&!/^https?:\/\//i.test(raw))
+   throw Error('Dozwolone są wyłącznie adresy HTTP/HTTPS.');
+ const completed=/^https?:\/\//i.test(raw)?raw:'https://'+raw;
+ let parsed;
+ try{parsed=new URL(completed)}catch{throw Error('Podaj poprawny adres, np. https://example.pl.')}
+ if(!['https:','http:'].includes(parsed.protocol)||!parsed.hostname||parsed.username||parsed.password)
+  throw Error('Dozwolone są wyłącznie zwykłe adresy HTTP/HTTPS.');
+ return parsed.href;
+}
 function priorityOptions(current){return [5,4,3,2,1].map(v=>'<option value="'+v+'"'+(Number(current)===v?' selected':'')+'>P'+v+'</option>').join('')}
 function liveCollector(c){
  const data=c||{};
@@ -146,11 +169,23 @@ function mergeProfiles(profiles){
 }
 function renderCard(s){
  const url=safeUrl(s.url);
+ const isEditing=editingUrlId===s.id;
+ const editForm=isEditing
+  ?'<form class="url-form" data-url-form="'+esc(s.id)+'" novalidate>'
+   +'<input name="url" type="text" inputmode="url" aria-label="Adres URL dla '+esc(s.name)+'" placeholder="https://twoje-zrodlo.pl" value="'+esc(url)+'" required maxlength="2048">'
+   +'<button type="submit" class="action" data-save-url="'+esc(s.id)+'">Zapisz URL</button>'
+   +'<button type="button" class="action" data-cancel-url="'+esc(s.id)+'">Anuluj</button>'
+   +(urlError?'<span class="url-error" role="alert">'+esc(urlError)+'</span>':'')
+   +'<small>Wpisanie URL nie uruchamia automatycznie monitorowania. Status kolektora pozostaje bez zmian.</small>'
+   +'</form>'
+  :'';
  return '<article class="source'+(s.active?'':' off')+'" data-id="'+esc(s.id)+'">'
    +'<div class="source-name">'+esc(s.name)+'</div>'
    +'<div class="source-details"><span class="pill">'+esc(s.source_type||'WWW')+'</span>'
    +(url?'<a href="'+esc(url)+'" target="_blank" rel="noopener noreferrer">Otwórz źródło ↗</a>':'<span>Brak URL</span>')
+   +'<button type="button" class="url-edit" data-edit-url="'+esc(s.id)+'">'+(url?'Zmień URL':'+ Dodaj URL')+'</button>'
    +collectorLabel(s.collector)+'</div>'
+   +editForm
    +'<div class="controls">'
    +'<select aria-label="Priorytet '+esc(s.name)+'" data-priority="'+esc(s.id)+'">'+priorityOptions(s.priority)+'</select>'
    +'<button type="button" class="action" data-toggle="'+esc(s.id)+'">'+(s.active?'AKTYWNE':'WYŁĄCZONE')+'</button>'
@@ -159,18 +194,20 @@ function renderCard(s){
 }
 function render(){
  const categorized=new Map();
- for(const source of sources){
+ const query=sourceSearch.value.trim().toLocaleLowerCase('pl');
+ const shown=sources.filter(source=>!query||[source.name,source.url,source.category].some(value=>String(value||'').toLocaleLowerCase('pl').includes(query)));
+ for(const source of shown){
    const key=source.category||'Inne';
    if(!categorized.has(key))categorized.set(key,[]);
    categorized.get(key).push(source);
  }
  const monitored=sources.filter(s=>liveCollector(s.collector)).length;
- const active=sources.filter(s=>s.active).length;
- meta.textContent=sources.length+' źródeł CR · '+active+' aktywnych · '+monitored+' z potwierdzonym odczytem';
+ const missing=sources.filter(s=>!safeUrl(s.url)).length;
+ meta.textContent=sources.length+' źródeł CR · '+missing+' bez URL · '+monitored+' z potwierdzonym odczytem'+(query?' · znaleziono: '+shown.length:'');
  groups.innerHTML=categorized.size?[...categorized.entries()].map(([category,rows])=>
   '<details class="category" open><summary><h2>'+esc(category)+'</h2><span class="count">'+rows.length+'</span></summary>'
   +'<div class="cards">'+rows.map(renderCard).join('')+'</div></details>').join('')
-  :'<div class="empty">Brak źródeł. Dodaj pierwsze źródło.</div>';
+  :'<div class="empty">'+(query?'Nie znaleziono pasujących źródeł.':'Brak źródeł. Dodaj pierwsze źródło.')+'</div>';
 }
 async function callApi(method,body,profile){
  const url=API+(profile?'?profile_key='+encodeURIComponent(profile):'');
@@ -204,6 +241,61 @@ async function updateAssignments(s,patch,method='PATCH'){
  }
  await load();
 }
+sourceSearch.addEventListener('input',render);
+groups.addEventListener('click',e=>{
+ const btn=e.target.closest('button[data-edit-url],button[data-cancel-url]');
+ if(!btn)return;
+ if(btn.dataset.editUrl){
+   editingUrlId=btn.dataset.editUrl;
+   urlError='';
+   render();
+   const input=groups.querySelector('.url-form[data-url-form="'+editingUrlId+'"] input');
+   if(input)input.focus();
+ }else{
+   editingUrlId=null;
+   urlError='';
+   render();
+ }
+});
+groups.addEventListener('submit',async e=>{
+ const form=e.target.closest('form[data-url-form]');
+ if(!form)return;
+ e.preventDefault();
+ const id=form.dataset.urlForm,source=sources.find(item=>item.id===id);
+ if(!source)return;
+ const input=form.querySelector('input[name="url"]');
+ let normalized;
+ try{normalized=normalizeUrl(input.value)}catch(error){
+   urlError=error.message;
+   const errorEl=form.querySelector('.url-error');
+   if(errorEl)errorEl.textContent=urlError;
+   else {
+     const message=document.createElement('span');
+     message.className='url-error';
+     message.setAttribute('role','alert');
+     message.textContent=urlError;
+     form.appendChild(message);
+   }
+   return;
+ }
+ const submitButton=form.querySelector('button[type="submit"]');
+ submitButton.disabled=true;submitButton.textContent='Zapisuję…';
+ try{
+   // The existing catalog-level PATCH edits only the URL, leaving legacy profile memberships,
+   // priorities, collector configuration and activity untouched.
+   const result=await callApi('PATCH',{id,url:normalized});
+   if(!result.source||safeUrl(result.source.url)!==normalized)
+     throw Error('Serwer nie potwierdził zapisu adresu.');
+   editingUrlId=null;
+   urlError='';
+   await load();
+ }catch(error){
+   urlError='Nie udało się zapisać URL: '+error.message;
+   let message=form.querySelector('.url-error');
+   if(!message){message=document.createElement('span');message.className='url-error';message.setAttribute('role','alert');form.appendChild(message)}
+   message.textContent=urlError;
+ }finally{submitButton.disabled=false;submitButton.textContent='Zapisz URL'}
+});
 groups.addEventListener('click',async e=>{
  const btn=e.target.closest('button[data-toggle],button[data-remove]');
  if(!btn)return;
