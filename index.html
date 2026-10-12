@@ -15,6 +15,8 @@ a{color:inherit}
 .top{display:flex;justify-content:space-between;align-items:center;gap:20px}
 .header-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:flex-end}
 .sync-trigger{font:inherit;background:transparent;cursor:pointer}
+.deleted-trigger{font:inherit;background:transparent;cursor:pointer}
+.deleted-trigger[aria-pressed="true"]{color:var(--accent);border-color:var(--accent)}
 .sync-panel{margin-top:18px;padding:16px;border:1px solid var(--border);border-radius:14px;background:#191d20}
 .sync-panel[hidden]{display:none}
 .sync-panel p{margin:8px 0;color:var(--muted);font-size:14px}
@@ -63,7 +65,7 @@ button{font:inherit;cursor:pointer}
 <body>
 
 <main>
-  <header class="top"><h1>Content Radar<span style="color:var(--accent)">.</span></h1><nav class="header-actions" aria-label="Opcje"><button class="source-link sync-trigger" type="button" id="syncLink">Połącz telefon</button><a class="source-link" href="sources.html">Źródła ↗</a></nav></header>
+  <header class="top"><h1>Content Radar<span style="color:var(--accent)">.</span></h1><nav class="header-actions" aria-label="Opcje"><button class="source-link deleted-trigger" type="button" id="deletedToggle" aria-pressed="false">Usunięte</button><button class="source-link sync-trigger" type="button" id="syncLink">Połącz telefon</button><a class="source-link" href="sources.html">Źródła ↗</a></nav></header>
   <section id="syncPanel" class="sync-panel" hidden aria-label="Synchronizacja urządzeń">
     <div class="sync-head"><strong>Synchronizacja urządzeń</strong><button id="syncClose" type="button" class="action">Zamknij</button></div>
     <p>Skopiuj link i otwórz go raz na Androidzie. Oba urządzenia będą wtedy pokazywać te same ukryte i zapisane wiadomości.</p>
@@ -90,6 +92,7 @@ const SYNC_ID=/^[1-9][0-9]{0,11}$/;
 const messages=document.querySelector('#messages');
 const meta=document.querySelector('#meta');
 const more=document.querySelector('#more');
+const deletedToggle=document.querySelector('#deletedToggle');
 const syncLink=document.querySelector('#syncLink');
 const syncPanel=document.querySelector('#syncPanel');
 const syncInvite=document.querySelector('#syncInvite');
@@ -97,7 +100,7 @@ const syncCopy=document.querySelector('#syncCopy');
 const syncClose=document.querySelector('#syncClose');
 const syncInfo=document.querySelector('#syncInfo');
 const search=document.querySelector('#search');
-let articles=[],pageSize=80,hidden=readSet(STORAGE_HIDDEN),saved=readSet(STORAGE_SAVED),fetching=false;
+let articles=[],pageSize=80,hidden=readSet(STORAGE_HIDDEN),saved=readSet(STORAGE_SAVED),fetching=false,deletedView=false;
 let prepared=readPrepared(),expanded=new Set(Object.keys(prepared)),preparing=new Set(),prepareErrors={};
 let syncToken=readSyncToken(),syncPending=readPending(),syncBusy=false,syncConnecting=false;
 
@@ -217,7 +220,7 @@ function visibleArticles(){
  const query=search.value.trim().toLocaleLowerCase('pl');
  return articles.filter(function(a){
   const key=String(a.id);
-  if(hidden.has(key))return false;
+  if(hidden.has(key)!==deletedView)return false;
   if(query&&!String(a.title||'').toLocaleLowerCase('pl').includes(query)&&!String(a.excerpt||'').toLocaleLowerCase('pl').includes(query))return false;
   return true;
  });
@@ -241,7 +244,7 @@ function card(a){
 function render(){
  const list=visibleArticles(),shown=list.slice(0,pageSize);
  messages.innerHTML=shown.length?shown.map(card).join(''):'<div class="empty">Brak wiadomości w tym widoku.</div>';
- meta.textContent='Wiadomości: '+articles.length+' · na liście: '+list.length+' · pokazano: '+shown.length;
+ meta.textContent='Wiadomości: '+articles.length+' · '+(deletedView?'usunięte: ':'na liście: ')+list.length+' · pokazano: '+shown.length;
  more.hidden=shown.length>=list.length;
  more.textContent='Pokaż kolejne ('+(list.length-shown.length)+')';
 }
@@ -249,9 +252,9 @@ messages.addEventListener('click',async function(event){
  const b=event.target.closest('button[data-action]');if(!b)return;
  const id=String(b.dataset.id);if(!articles.some(function(a){return String(a.id)===id}))return;
  if(b.dataset.action==='hide'){
-  hidden.add(id);
+  if(hidden.has(id))hidden.delete(id);else hidden.add(id);
   storeSet(STORAGE_HIDDEN,hidden);
-  enqueueSync('hidden',id,true);
+  enqueueSync('hidden',id,hidden.has(id));
  }else if(b.dataset.action==='save'){
   if(saved.has(id))saved.delete(id);else saved.add(id);
   storeSet(STORAGE_SAVED,saved);
@@ -289,6 +292,13 @@ messages.addEventListener('click',async function(event){
     finally{preparing.delete(id)}
   }
  }
+ render();
+});
+deletedToggle.addEventListener('click',function(){
+ deletedView=!deletedView;
+ pageSize=80;
+ deletedToggle.textContent=deletedView?'← Wiadomości':'Usunięte';
+ deletedToggle.setAttribute('aria-pressed',String(deletedView));
  render();
 });
 search.addEventListener('input',function(){pageSize=80;render()});
