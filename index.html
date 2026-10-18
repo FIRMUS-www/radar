@@ -82,6 +82,8 @@ button{font:inherit;cursor:pointer}
 
 'use strict';
 const API='/api/items';
+const IDEA_RPC='https://oxpvuxxcskqggfqgefzg.supabase.co/rest/v1/rpc/content_radar_enqueue_idea';
+const IDEA_API_KEY='sb_publishable_DpiuTMhpgVFfiY4O9mm0nw_HNhxmfqV';
 const STORAGE_HIDDEN='cr_feed_hidden_v1';
 const STORAGE_SAVED='cr_feed_saved_v1';
 const STORAGE_PREPARED='cr_feed_prepared_v1';
@@ -102,6 +104,7 @@ const syncInfo=document.querySelector('#syncInfo');
 const search=document.querySelector('#search');
 let articles=[],pageSize=80,hidden=readSet(STORAGE_HIDDEN),saved=readSet(STORAGE_SAVED),fetching=false,deletedView=false;
 let prepared=readPrepared(),expanded=new Set(Object.keys(prepared)),preparing=new Set(),prepareErrors={};
+let ideasQueued=new Set(),ideasQueueing=new Set();
 let syncToken=readSyncToken(),syncPending=readPending(),syncBusy=false,syncConnecting=false;
 
 function readSyncToken(){try{const t=localStorage.getItem(STORAGE_SYNC);return SYNC_PATTERN.test(t||'')?t:null}catch{return null}}
@@ -238,7 +241,8 @@ function card(a){
  const item=prepared[id];
  const prepButton='<button type="button" class="action prepare" data-action="prepare" data-id="'+esc(id)+'"'+(preparing.has(id)?' disabled':'')+'>'+(preparing.has(id)?'Przygotowuję…':item&&item.method!=='source_text_extract_v2'?'↻ Popraw opis':item?(expanded.has(id)?'✦ Zwiń opis':'✦ Pokaż opis'):'✦ Przygotuj')+'</button>';
  const err=prepareErrors[id]?'<div class="brief-error" role="alert">'+esc(prepareErrors[id])+'</div>':'';
- const details=item&&expanded.has(id)?'<div class="brief"><div class="brief-head"><span class="brief-code">'+esc(item.cr)+'</span><button class="action" type="button" data-action="copy-brief" data-id="'+esc(id)+'">Kopiuj do wątku rolek</button><button class="action" type="button" data-action="copy" data-id="'+esc(id)+'">Kopiuj numer</button><a class="action" href="/api/cr?ref='+encodeURIComponent(item.cr)+'" target="_blank" rel="noopener noreferrer">Link CR ↗</a></div><p>'+esc(item.description)+'</p><a class="brief-link" href="'+esc(link(item.source_url))+'" target="_blank" rel="noopener noreferrer">Źródło ↗</a><p><small>Opis roboczy z pełniejszej treści źródłowej (wybrane fragmenty, bez oceny AI). Sprawdź artykuł przed publikacją.</small></p></div>':'';
+ const queueButton='<button type="button" class="action prepare" data-action="queue-idea" data-id="'+esc(id)+'"'+(ideasQueueing.has(id)||ideasQueued.has(id)?' disabled':'')+'>'+(ideasQueued.has(id)?'✓ Przekazano do kreatora':ideasQueueing.has(id)?'Przekazuję…':'✦ Utwórz rolkę')+'</button>';
+ const details=item&&expanded.has(id)?'<div class="brief"><div class="brief-head">'+queueButton+'</div><p>'+esc(item.description)+'</p><a class="brief-link" href="'+esc(link(item.source_url))+'" target="_blank" rel="noopener noreferrer">Źródło ↗</a><p><small>Opis roboczy z pełniejszej treści źródłowej (wybrane fragmenty, bez oceny AI). Sprawdź artykuł przed publikacją.</small></p></div>':'';
  return first+saveButton+hideButton+prepButton+'</div>'+err+details+'</article>';
 }
 function render(){
@@ -273,6 +277,34 @@ messages.addEventListener('click',async function(event){
       +'\nKarta CR do odczytu w każdym wątku: '+crLink
       +'\n\nNumer nowego CR odnosi się do rekordu content_radar_discoveries, a nie do starej tabeli content_radar_items.';
     navigator.clipboard.writeText(payload).catch(function(){prepareErrors[id]='Nie udało się skopiować materiału do wątku.';render()});
+  }
+  return;
+ }else if(b.dataset.action==='queue-idea'){
+  if(ideasQueueing.has(id)||ideasQueued.has(id))return;
+  const entry=prepared[id];
+  if(!entry||typeof entry.description!=='string'||!link(entry.source_url)){
+    prepareErrors[id]='Najpierw przygotuj materiał źródłowy.';
+    render();return;
+  }
+  ideasQueueing.add(id);
+  delete prepareErrors[id];
+  render();
+  try{
+    const response=await fetch(IDEA_RPC,{
+      method:'POST',
+      headers:{apikey:IDEA_API_KEY,'Content-Type':'application/json'},
+      body:JSON.stringify({p_discovery_id:Number(id),p_description:entry.description}),
+      signal:AbortSignal.timeout(15000)
+    });
+    if(!response.ok)throw new Error('HTTP '+response.status);
+    const outcome=await response.json();
+    if(outcome&&['created','exists'].includes(outcome.status))ideasQueued.add(id);
+    else throw new Error('QUEUE_REJECTED');
+  }catch(error){
+    prepareErrors[id]='Nie udało się przekazać do kreatora. Spróbuj ponownie.';
+  }finally{
+    ideasQueueing.delete(id);
+    render();
   }
   return;
  }else if(b.dataset.action==='prepare'){
